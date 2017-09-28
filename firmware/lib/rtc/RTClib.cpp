@@ -205,8 +205,9 @@ static uint8_t bcd2bin (uint8_t val) { return val - 6 * (val >> 4); }
 static uint8_t bin2bcd (uint8_t val) { return val + 6 * (val / 10); }
 
 boolean RTC_BQ32000::begin(void) {
-  Wire.begin();
-  return true;
+    Wire.pins(RTC_SDA_PIN, RTC_SCL_PIN);
+    Wire.begin();
+    return true;
 }
 
 uint8_t RTC_BQ32000::isrunning(void) {

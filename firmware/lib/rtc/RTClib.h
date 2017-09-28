@@ -7,6 +7,8 @@
 #include <Arduino.h>
 
 #define RTC_IRQ_PIN 12
+#define RTC_SDA_PIN 4
+#define RTC_SCL_PIN 0
 
 #define BQ32000_ADDRESS  0x68
 #define BQ32000_CONTROL  0x07

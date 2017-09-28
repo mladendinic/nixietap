@@ -61,7 +61,7 @@ void nixie::init(void)
 void nixie::write(
     uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots)
 {
-    uint8_t part1, part2, part3, part4, part5;
+    uint8_t part1, part2, part3, part4, part5, part6;
     // Display has 4 x 10 positions total, and SPI transfers 8 bits at the time.
     // We need to send it as 5 x 8 positions
     part1 = ~(pinmap[digit1] >> 2);
@@ -69,6 +69,7 @@ void nixie::write(
     part3 = ~(((pinmap[digit2] & 0b0000001111) << 4) | (pinmap[digit3] >> 6));
     part4 = ~(((pinmap[digit3] & 0b0000111111) << 2) | (pinmap[digit4] >> 8));
     part5 = ~(((pinmap[digit4] & 0b0011111111)));
+    part6 = dots;
     // Transmit over SPI
     SPI.begin();
     SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
@@ -78,11 +79,12 @@ void nixie::write(
     SPI.transfer(part3);
     SPI.transfer(part4);
     SPI.transfer(part5);
+    SPI.transfer(part6);
     digitalWrite(SPI_CS, HIGH);
     SPI.endTransaction();
-    // Display dots
-    digitalWrite(H1_DOT, dots & 0b00001000);
-    digitalWrite(H0_DOT, dots & 0b00000100);
-    digitalWrite(M1_DOT, dots & 0b00000010);
-    digitalWrite(M0_DOT, dots & 0b00000001);
+//     // Display dots
+//     digitalWrite(H1_DOT, dots & 0b00001000);
+//     digitalWrite(H0_DOT, dots & 0b00000100);
+//     digitalWrite(M1_DOT, dots & 0b00000010);
+//     digitalWrite(M0_DOT, dots & 0b00000001);
 }
