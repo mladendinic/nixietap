@@ -1,5 +1,6 @@
 // Code by JeeLabs http://news.jeelabs.org/code/
 // Released to the public domain! Enjoy!
+// Modified to suit nixie tap project
 
 #include <Wire.h>
 #include "RTClib.h"
@@ -102,7 +103,64 @@ DateTime::DateTime (uint32_t t) {
 
 DateTime::DateTime (uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec) {
     if (year >= 2000)
-        year -= 2000;
+        year -= 2000;// BQ32000 register addresses:
+#define BQ32000_CAL_CFG1        0x07
+#define BQ32000_TCH2            0x08
+#define BQ32000_CFG2            0x09
+#define BQ32000_SFKEY1          0x20
+#define BQ32000_SFKEY2          0x21
+#define BQ32000_SFR             0x22
+
+// BQ32000 config bits:
+#define BQ32000__OUT            0x07 // CAL_CFG1 - IRQ active state// BQ32000 register addresses:
+#define BQ32000_CAL_CFG1        0x07
+#define BQ32000_TCH2            0x08
+#define BQ32000_CFG2            0x09
+#define BQ32000_SFKEY1          0x20
+#define BQ32000_SFKEY2          0x21
+#define BQ32000_SFR             0x22
+
+// BQ32000 config bits:
+#define BQ32000__OUT            0x07 // CAL_CFG1 - IRQ active state
+#define BQ32000__FT             0x06 // CAL_CFG1 - IRQ square wave enable
+#define BQ32000__CAL_S          0x05 // CAL_CFG1 - Calibration sign
+#define BQ32000__TCH2_BIT       0x05 // TCH2 - Trickle charger switch 2// BQ32000 register addresses:
+#define BQ32000_CAL_CFG1        0x07
+#define BQ32000_TCH2            0x08
+#define BQ32000_CFG2            0x09
+#define BQ32000_SFKEY1          0x20
+#define BQ32000_SFKEY2          0x21
+#define BQ32000_SFR             0x22
+
+// BQ32000 config bits:
+#define BQ32000__OUT            0x07 // CAL_CFG1 - IRQ active state
+#define BQ32000__FT             0x06 // CAL_CFG1 - IRQ square wave enable
+#define BQ32000__CAL_S          0x05 // CAL_CFG1 - Calibration sign
+#define BQ32000__TCH2_BIT       0x05 // TCH2 - Trickle charger switch 2
+#define BQ32000__TCFE           0x06 // CFG2 - Trickle FET control
+// BQ32000 config values:
+#define BQ32000_CHARGE_ENABLE   0x05 // CFG2 - Trickle charger switch 1 enable
+#define BQ32000_SFKEY1_VAL      0x5E
+#define BQ32000_SFKEY2_VAL      0xC7
+#define BQ32000_FTF_1HZ         0x01
+#define BQ32000_FTF_512HZ       0x00
+#define BQ32000__TCFE           0x06 // CFG2 - Trickle FET control
+// BQ32000 config values:
+#define BQ32000_CHARGE_ENABLE   0x05 // CFG2 - Trickle charger switch 1 enable
+#define BQ32000_SFKEY1_VAL      0x5E
+#define BQ32000_SFKEY2_VAL      0xC7
+#define BQ32000_FTF_1HZ         0x01
+#define BQ32000_FTF_512HZ       0x00
+#define BQ32000__FT             0x06 // CAL_CFG1 - IRQ square wave enable
+#define BQ32000__CAL_S          0x05 // CAL_CFG1 - Calibration sign
+#define BQ32000__TCH2_BIT       0x05 // TCH2 - Trickle charger switch 2
+#define BQ32000__TCFE           0x06 // CFG2 - Trickle FET control
+// BQ32000 config values:
+#define BQ32000_CHARGE_ENABLE   0x05 // CFG2 - Trickle charger switch 1 enable
+#define BQ32000_SFKEY1_VAL      0x5E
+#define BQ32000_SFKEY2_VAL      0xC7
+#define BQ32000_FTF_1HZ         0x01
+#define BQ32000_FTF_512HZ       0x00
     yOff = year;
     m = month;
     d = day;
@@ -207,6 +265,24 @@ static uint8_t bin2bcd (uint8_t val) { return val + 6 * (val / 10); }
 boolean RTC_BQ32000::begin(void) {
     Wire.pins(RTC_SDA_PIN, RTC_SCL_PIN);
     Wire.begin();
+    // enable charger
+    Wire.beginTransmission(BQ32000_ADDRESS);
+    Wire._I2C_WRITE((byte)9);
+    Wire._I2C_WRITE((byte)0x05);
+    Wire._I2C_WRITE((byte)8);
+    Wire._I2C_WRITE((byte)0x20);
+    Wire._I2C_WRITE((byte)9);
+    Wire._I2C_WRITE((byte)0x45);
+    Wire.endTransmission();
+    // enable freq output
+    Wire.beginTransmission(BQ32000_ADDRESS);
+    Wire.write(BQ32000_SFKEY1);
+    Wire.write(BQ32000_SFKEY1_VAL);
+    Wire.write(BQ32000_SFKEY2_VAL);
+    Wire.write(BQ32000_FTF_1HZ);
+    Wire.endTransmission();
+
+
     return true;
 }
 
@@ -233,24 +309,6 @@ void RTC_BQ32000::adjust(const DateTime& dt) {
   Wire.endTransmission();
 }
 
-void RTC_BQ32000::enableCharger() {
-
-    Wire.beginTransmission(BQ32000_ADDRESS);
-    Wire._I2C_WRITE((byte)9);
-    Wire._I2C_WRITE((byte)0x05);
-    Wire.endTransmission();
-
-    Wire.beginTransmission(BQ32000_ADDRESS);
-    Wire._I2C_WRITE((byte)8);
-    Wire._I2C_WRITE((byte)0x20);
-    Wire.endTransmission();
-
-    Wire.beginTransmission(BQ32000_ADDRESS);
-    Wire._I2C_WRITE((byte)9);
-    Wire._I2C_WRITE((byte)0x45);
-    Wire.endTransmission();
-
-}
 
 void RTC_BQ32000::configure_interrrupts() {
     pinMode(RTC_IRQ_PIN, INPUT_PULLUP);

@@ -1,6 +1,8 @@
 #ifndef NIXIE_H_   /* Include guard */
 #define NIXIE_H_
 
+#include "RTClib.h"
+
 class nixie
 {
     static const uint8_t H1_DOT;
@@ -20,6 +22,7 @@ class nixie
             uint8_t digit3,
             uint8_t digit4,
             uint8_t dots);
+        void write_time(const DateTime&, uint8_t dot_state);
 
 };
 

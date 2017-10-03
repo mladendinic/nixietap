@@ -14,9 +14,12 @@ RTC_BQ32000 rtc;
 DateTime rtc_time;
 NTPClient timeClient(ntpUDP);
 uint8_t seconds_buffer;
-uint8_t dot_state;
+uint8_t dot_state = 0;
+uint8_t timer_int = 0;
+uint8_t state = 0;
 
 static const uint8_t PWM_PIN = 16;
+static const uint8_t IRQ_PIN = 5;
 
 void setup() {
 
@@ -26,14 +29,18 @@ void setup() {
 
     // configure pins
     pinMode(PWM_PIN, OUTPUT);
+    pinMode(IRQ_PIN, INPUT);
+
 
     // fire up the RTC
     rtc.begin();
-    rtc.enableCharger();
+
+    // interrupts
+    attachInterrupt(IRQ_PIN, rtc_int, RISING);
 
     // fire up the WiFi
     WiFi.begin(ssid, password);
-    delay(1000);
+    delay(3000);
     if ( WiFi.status() == WL_CONNECTED ) {
         // fire up the timeClient
         timeClient.begin();
@@ -45,8 +52,8 @@ void setup() {
         Serial.println("Connected");
     }
     else {
-        rtc.adjust(DateTime(2017, 9, 3,
-            20, 3, 15));
+        // rtc.adjust(DateTime(2017, 9, 3,
+        //     20, 3, 15));
         Serial.println("Not connected");
     }
 
@@ -58,16 +65,22 @@ void setup() {
 
 void loop() {
 
-    // get time from RTC
-    rtc_time = rtc.now();
-    // write on Nixie display
-    if (rtc_time.second() > seconds_buffer)
+    if(timer_int)
     {
-        seconds_buffer = rtc_time.second();
-        dot_state = (~dot_state) & 0b1000;
-        display.write(rtc_time.hour() / 10, rtc_time.hour() % 10, rtc_time.minute()  / 10, rtc_time.minute() % 10, dot_state);
-        if(seconds_buffer == 59) { seconds_buffer = 0; }
-    }
+        switch (state)
+        {
+            case 0:
+                timer_int = 0;
+                rtc_time = rtc.now();
+                display.write_time(rtc_time, dot_state);
+        }
 
-    delay(250);
+
+    }
+}
+
+void rtc_int()
+{
+    timer_int = 1;
+    dot_state = ~dot_state;
 }

@@ -88,3 +88,12 @@ void nixie::write(
 //     digitalWrite(M1_DOT, dots & 0b00000010);
 //     digitalWrite(M0_DOT, dots & 0b00000001);
 }
+
+void nixie::write_time(const DateTime& dt, uint8_t dot_state)
+{
+
+    nixie::write(dt.hour()/10, dt.hour()%10,
+            dt.minute()/10, dt.minute()%10,
+            dot_state&0b1000);
+
+}
