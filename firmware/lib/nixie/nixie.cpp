@@ -97,3 +97,11 @@ void nixie::write_time(const DateTime& dt, uint8_t dot_state)
             dot_state&0b1000);
 
 }
+void nixie::write_date(const DateTime& dt, uint8_t dot_state)
+{
+
+    nixie::write(dt.month()/10, dt.month()%10,
+            dt.day()/10, dt.day()%10,
+            dot_state&0b1000);
+
+}

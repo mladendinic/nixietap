@@ -87,7 +87,7 @@ public:
     void writenvram(uint8_t address, uint8_t data);
     void writenvram(uint8_t address, uint8_t* buf, uint8_t size);
     void enableCharger();
-    void configure_interrrupts();
+
 };
 
 #endif // _RTCLIB_H_

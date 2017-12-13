@@ -23,6 +23,7 @@ class nixie
             uint8_t digit4,
             uint8_t dots);
         void write_time(const DateTime&, uint8_t dot_state);
+        void write_date(const DateTime&, uint8_t dot_state);
 
 };
 
