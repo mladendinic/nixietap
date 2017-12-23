@@ -11,8 +11,10 @@
 #define RTC_IRQ_PIN D1
 #define RTC_SDA_PIN D3
 #define RTC_SCL_PIN D4
+#define BUTTON D2
 
 void irq_1Hz_int();
+void buttonPressed();
 
 Nixie nixie;
 RTC_BQ32000 bq32000;
@@ -20,6 +22,7 @@ DateTime rtc_time;
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, 60*60);
 
+volatile bool buttonState = HIGH;
 volatile bool dot_state = LOW;
 
 void setup() {
@@ -41,21 +44,38 @@ void setup() {
     timeClient.begin();
     nixie.init();
 
-    // interrupts
+    // RTC IRQ interrupt
     pinMode(RTC_IRQ_PIN, INPUT);
     attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
+    // Touch button interrupt
+    pinMode(BUTTON, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, FALLING);
+
+    pinMode(BUTTON, INPUT_PULLUP);
 
     // get time from server and update it on a RTC
-    while(!timeClient.update());
-    rtc_time = timeClient.getEpochTime();
-    bq32000.adjust(rtc_time);
+    if(!timeClient.update()) {
+        Serial.println("Can't pull date from server!");
+    } else {
+        rtc_time = timeClient.getEpochTime();
+        bq32000.adjust(rtc_time);
+    }
 }
 
 
 void loop() {
-    nixie.write_time(bq32000.now(), dot_state);
+    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse.
+    if (buttonState) {
+        nixie.write_time(bq32000.now(), dot_state);
+    } else {
+        nixie.write_date(bq32000.now(), dot_state);
+    }
 }
 
 void irq_1Hz_int() {
     dot_state = !dot_state;
+}
+
+void buttonPressed() {
+    buttonState = !buttonState;
 }
