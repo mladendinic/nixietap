@@ -1,14 +1,9 @@
 #include <SPI.h>
 #include <Arduino.h>
-#include "nixie.h"
+#include "Nixie.h"
 
-const uint8_t nixie::H1_DOT = 0;
-const uint8_t nixie::H0_DOT = 2;
-const uint8_t nixie::M1_DOT = 16;   // CHECK IN HARDWARE!!!!
-const uint8_t nixie::M0_DOT = 1;    // CHECK IN HARDWARE!!!
-const uint8_t nixie::SPI_CS = 10;
-const uint8_t nixie::PSU_EN = 15;
-const uint16_t nixie::pinmap[11] =
+const uint8_t Nixie::SPI_CS = D8;
+const uint16_t Nixie::pinmap[11] =
 {
     0b0000010000, // 0
     0b0000100000, // 1
@@ -23,25 +18,15 @@ const uint16_t nixie::pinmap[11] =
     0b0000000000  // digit off
 };
 
-
-nixie::nixie(void) {};
 /**
 * Initialize the display
 *
 * This function configures pinModes based on .h file.
 */
-void nixie::init(void)
+void Nixie::init()
 {
     // Set SPI chip select as output
     pinMode(SPI_CS, OUTPUT);
-    // Set dot pins as outputs
-    pinMode(H1_DOT, OUTPUT);
-    pinMode(H0_DOT, OUTPUT);
-    pinMode(M1_DOT, OUTPUT);
-    pinMode(M0_DOT, OUTPUT);
-    // Enable high voltage power supply
-    pinMode(PSU_EN, OUTPUT);
-    digitalWrite(PSU_EN, HIGH);
 
 }
 /**
@@ -58,8 +43,7 @@ void nixie::init(void)
 * @param dots dot values, encoded in binary;
 * (H1, H0, M1, M0) = (0b1000, 0b100, 0b10, 0b1)
 */
-void nixie::write(
-    uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots)
+void Nixie::write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots)
 {
     uint8_t part1, part2, part3, part4, part5, part6;
     // Display has 4 x 10 positions total, and SPI transfers 8 bits at the time.
@@ -82,26 +66,15 @@ void nixie::write(
     SPI.transfer(part6);
     digitalWrite(SPI_CS, HIGH);
     SPI.endTransaction();
-//     // Display dots
-//     digitalWrite(H1_DOT, dots & 0b00001000);
-//     digitalWrite(H0_DOT, dots & 0b00000100);
-//     digitalWrite(M1_DOT, dots & 0b00000010);
-//     digitalWrite(M0_DOT, dots & 0b00000001);
 }
 
-void nixie::write_time(const DateTime& dt, uint8_t dot_state)
+void Nixie::write_time(const DateTime& dt, uint8_t dot_state)
 {
-
-    nixie::write(dt.hour()/10, dt.hour()%10,
-            dt.minute()/10, dt.minute()%10,
-            dot_state&0b1000);
+    Nixie::write(dt.hour()/10, dt.hour()%10, dt.minute()/10, dt.minute()%10, dot_state*0b1000);
 
 }
-void nixie::write_date(const DateTime& dt, uint8_t dot_state)
+void Nixie::write_date(const DateTime& dt, uint8_t dot_state)
 {
-
-    nixie::write(dt.month()/10, dt.month()%10,
-            dt.day()/10, dt.day()%10,
-            dot_state&0b1000);
+    Nixie::write(dt.month()/10, dt.month()%10, dt.day()/10, dt.day()%10, dot_state*0b1000);
 
 }

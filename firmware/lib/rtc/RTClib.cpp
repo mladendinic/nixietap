@@ -1,21 +1,12 @@
-// Code by JeeLabs http://news.jeelabs.org/code/
-// Released to the public domain! Enjoy!
-// Modified to suit nixie tap project
+// A library for handling real-time clocks, dates, etc.
+// Only ESP8266 compatible!
 
 #include <Wire.h>
+#include <Arduino.h>
+#include <pgmspace.h>
 #include "RTClib.h"
-#ifdef __AVR__
- #include <avr/pgmspace.h>
-#elif defined(ESP8266)
- #include <pgmspace.h>
-#elif defined(ARDUINO_ARCH_SAMD)
-// nothing special needed
-#elif defined(ARDUINO_SAM_DUE)
- #define PROGMEM
- #define pgm_read_byte(addr) (*(const unsigned char *)(addr))
- #define Wire Wire1
-#endif
 
+#define BQ32000_ADDRESS         0x68
 // BQ32000 register addresses:
 #define BQ32000_CAL_CFG1        0x07
 #define BQ32000_TCH2            0x08
@@ -25,7 +16,7 @@
 #define BQ32000_SFR             0x22
 // BQ32000 config bits:
 #define BQ32000__OUT            0x07 // CAL_CFG1 - IRQ active state
-#define BQ32000__FT             0b01000000//0x06 // CAL_CFG1 - IRQ square wave enable
+#define BQ32000__FT             0x06 // CAL_CFG1 - IRQ square wave enable
 #define BQ32000__CAL_S          0x05 // CAL_CFG1 - Calibration sign
 #define BQ32000__TCH2_BIT       0x05 // TCH2 - Trickle charger switch 2
 #define BQ32000__TCFE           0x06 // CFG2 - Trickle FET control
@@ -36,39 +27,14 @@
 #define BQ32000_FTF_1HZ         0x01
 #define BQ32000_FTF_512HZ       0x00
 
-
-#if (ARDUINO >= 100)
- #include <Arduino.h> // capital A so it is error prone on case-sensitive filesystems
- // Macro to deal with the difference in I2C write functions from old and new Arduino versions.
- #define _I2C_WRITE write
- #define _I2C_READ  read
-#else
- #include <WProgram.h>
- #define _I2C_WRITE send
- #define _I2C_READ  receive
-#endif
-
-static uint8_t read_i2c_register(uint8_t addr, uint8_t reg) {
-  Wire.beginTransmission(addr);
-  Wire._I2C_WRITE((byte)reg);
-  Wire.endTransmission();
-
-  Wire.requestFrom(addr, (byte)1);
-  return Wire._I2C_READ();
-}
-
-static void write_i2c_register(uint8_t addr, uint8_t reg, uint8_t val) {
-  Wire.beginTransmission(addr);
-  Wire._I2C_WRITE((byte)reg);
-  Wire._I2C_WRITE((byte)val);
-  Wire.endTransmission();
-}
-
+#define SECONDS_PER_DAY         86400L
 
 ////////////////////////////////////////////////////////////////////////////////
 // utility code, some of this could be exposed in the DateTime API if needed
 
-const uint8_t daysInMonth [] PROGMEM = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+static const uint8_t daysInMonth [] PROGMEM = {
+  31,28,31,30,31,30,31,31,30,31,30,31
+};
 
 // number of days since 2000/01/01, valid for 2001..2099
 static uint16_t date2days(uint16_t y, uint8_t m, uint8_t d) {
@@ -90,9 +56,7 @@ static long time2long(uint16_t days, uint8_t h, uint8_t m, uint8_t s) {
 // DateTime implementation - ignores time zones and DST changes
 // NOTE: also ignores leap seconds, see http://en.wikipedia.org/wiki/Leap_second
 
-DateTime::DateTime (uint32_t t) {
-  t -= SECONDS_FROM_1970_TO_2000;    // bring to 2000 timestamp from 1970
-
+DateTime::DateTime (long t) {
     ss = t % 60;
     t /= 60;
     mm = t % 60;
@@ -120,7 +84,6 @@ DateTime::DateTime (uint32_t t) {
 DateTime::DateTime (uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t min, uint8_t sec) {
     if (year >= 2000)
         year -= 2000;
-
     yOff = year;
     m = month;
     d = day;
@@ -128,15 +91,6 @@ DateTime::DateTime (uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uin
     mm = min;
     ss = sec;
 }
-
-DateTime::DateTime (const DateTime& copy):
-  yOff(copy.yOff),
-  m(copy.m),
-  d(copy.d),
-  hh(copy.hh),
-  mm(copy.mm),
-  ss(copy.ss)
-{}
 
 static uint8_t conv2d(const char* p) {
     uint8_t v = 0;
@@ -147,13 +101,13 @@ static uint8_t conv2d(const char* p) {
 
 // A convenient constructor for using "the compiler's time":
 //   DateTime now (__DATE__, __TIME__);
-// NOTE: using F() would further reduce the RAM footprint, see below.
+// NOTE: using PSTR would further reduce the RAM footprint
 DateTime::DateTime (const char* date, const char* time) {
     // sample input: date = "Dec 26 2009", time = "12:34:56"
     yOff = conv2d(date + 9);
     // Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
     switch (date[0]) {
-        case 'J': m = (date[1] == 'a') ? 1 : ((date[2] == 'n') ? 6 : 7); break;
+        case 'J': m = date[1] == 'a' ? 1 : m = date[2] == 'n' ? 6 : 7; break;
         case 'F': m = 2; break;
         case 'A': m = date[2] == 'r' ? 4 : 8; break;
         case 'M': m = date[2] == 'r' ? 3 : 5; break;
@@ -168,177 +122,158 @@ DateTime::DateTime (const char* date, const char* time) {
     ss = conv2d(time + 6);
 }
 
-// A convenient constructor for using "the compiler's time":
-// This version will save RAM by using PROGMEM to store it by using the F macro.
-//   DateTime now (F(__DATE__), F(__TIME__));
-DateTime::DateTime (const __FlashStringHelper* date, const __FlashStringHelper* time) {
-    // sample input: date = "Dec 26 2009", time = "12:34:56"
-    char buff[11];
-    memcpy_P(buff, date, 11);
-    yOff = conv2d(buff + 9);
-    // Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec
-    switch (buff[0]) {
-        case 'J': m = (buff[1] == 'a') ? 1 : ((buff[2] == 'n') ? 6 : 7); break;
-        case 'F': m = 2; break;
-        case 'A': m = buff[2] == 'r' ? 4 : 8; break;
-        case 'M': m = buff[2] == 'r' ? 3 : 5; break;
-        case 'S': m = 9; break;
-        case 'O': m = 10; break;
-        case 'N': m = 11; break;
-        case 'D': m = 12; break;
-    }
-    d = conv2d(buff + 4);
-    memcpy_P(buff, time, 8);
-    hh = conv2d(buff);
-    mm = conv2d(buff + 3);
-    ss = conv2d(buff + 6);
-}
-
-uint8_t DateTime::dayOfTheWeek() const {
-    uint16_t day = date2days(yOff, m, d);
+uint8_t DateTime::dayOfWeek() const {
+    uint16_t day = get() / SECONDS_PER_DAY;
     return (day + 6) % 7; // Jan 1, 2000 is a Saturday, i.e. returns 6
 }
 
-uint32_t DateTime::unixtime(void) const {
-  uint32_t t;
-  uint16_t days = date2days(yOff, m, d);
-  t = time2long(days, hh, mm, ss);
-  t += SECONDS_FROM_1970_TO_2000;  // seconds from 1970 to 2000
-
-  return t;
+long DateTime::get() const {
+    uint16_t days = date2days(yOff, m, d);
+    return time2long(days, hh, mm, ss);
 }
 
-long DateTime::secondstime(void) const {
-  long t;
-  uint16_t days = date2days(yOff, m, d);
-  t = time2long(days, hh, mm, ss);
-  return t;
+///////////////////////////////////////////////////////////////////////////////
+// RTC_BQ32000 implementation
+
+void RTC_BQ32000::begin(uint8_t sda, uint8_t scl) {
+    Wire.begin(sda, scl);
+    Wire.setClock(100000);
+}
+
+void RTC_BQ32000::adjust(const DateTime& dt) {
+    Wire.beginTransmission(BQ32000_ADDRESS);
+    Wire.write((byte) 0);
+    Wire.write(bin2bcd(dt.second()));
+    Wire.write(bin2bcd(dt.minute()));
+    Wire.write(bin2bcd(dt.hour()));
+    Wire.write(bin2bcd(0));
+    Wire.write(bin2bcd(dt.day()));
+    Wire.write(bin2bcd(dt.month()));
+    Wire.write(bin2bcd(dt.year() - 2000));
+    Wire.endTransmission();
+}
+
+DateTime RTC_BQ32000::now() {
+    Wire.beginTransmission(BQ32000_ADDRESS);
+    Wire.write((byte) 0);
+    Wire.endTransmission();
+
+    Wire.requestFrom(BQ32000_ADDRESS, 7);
+    uint8_t ss = bcd2bin(Wire.read());
+    uint8_t mm = bcd2bin(Wire.read());
+    uint8_t hh = bcd2bin(Wire.read());
+    Wire.read();
+    uint8_t d = bcd2bin(Wire.read());
+    uint8_t m = bcd2bin(Wire.read());
+    uint16_t y = bcd2bin(Wire.read()) + 2000;
+
+    return DateTime (y, m, d, hh, mm, ss);
+}
+
+void RTC_BQ32000::setIRQ(uint8_t state) {
+    /* Set IRQ square wave output state: 0=disabled, 1=1Hz, 2=512Hz.
+     */
+  uint8_t reg, value;
+    if (state) {
+      // Setting the frequency is a bit complicated on the BQ32000:
+      Wire.beginTransmission(BQ32000_ADDRESS);
+      Wire.write(BQ32000_SFKEY1);
+      Wire.write(BQ32000_SFKEY1_VAL);
+      Wire.write(BQ32000_SFKEY2_VAL);
+      Wire.write((state == 1) ? BQ32000_FTF_1HZ : BQ32000_FTF_512HZ);
+      Wire.endTransmission();
+    }
+    value = readRegister(BQ32000_CAL_CFG1);
+    value = (!state) ? value & ~(1<<BQ32000__FT) : value | (1<<BQ32000__FT);
+    writeRegister(BQ32000_CAL_CFG1, value);
+}
+
+void RTC_BQ32000::setIRQLevel(uint8_t level) {
+    /* Set IRQ output level when IRQ square wave output is disabled to
+     * LOW or HIGH.
+     */
+    uint8_t value;
+    // The IRQ active level bit is in the same register as the calibration
+    // settings, so we preserve its current state:
+    value = readRegister(BQ32000_CAL_CFG1);
+    value = (!level) ? value & ~(1<<BQ32000__OUT) : value | (1<<BQ32000__OUT);
+    writeRegister(BQ32000_CAL_CFG1, value);
+}
+
+void RTC_BQ32000::setCalibration(int8_t value) {
+    /* Sets the calibration value to given value in the range -31 - 31, which
+     * corresponds to -126ppm - +63ppm; see table 13 in th BQ32000 datasheet.
+     */
+    uint8_t val;
+    if (value > 31) value = 31;
+    if (value < -31) value = -31;
+    val = (uint8_t) (value < 0) ? -value | (1<<BQ32000__CAL_S) : value;
+    val |= readRegister(BQ32000_CAL_CFG1) & ~0x3f;
+    writeRegister(BQ32000_CAL_CFG1, val);
+}
+
+void RTC_BQ32000::setCharger(int state) {
+    /* If using a super capacitor instead of a battery for backup power, use this
+     * method to set the state of the trickle charger: 0=disabled, 1=low-voltage
+     * charge, 2=high-voltage charge. In low-voltage charge mode, the super cap is
+     * charged through a diode with a voltage drop of about 0.5V, so it will charge
+     * up to VCC-0.5V. In high-voltage charge mode the diode is bypassed and the super
+     * cap will be charged up to VCC (make sure the charge voltage does not exceed your
+     * super cap's voltage rating!!).
+     */
+    // First disable charger regardless of state (prevents it from
+    // possible starting up in the high voltage mode when the low
+    // voltage mode is requested):
+    uint8_t value;
+    writeRegister(BQ32000_TCH2, 0);
+    if (state <= 0 || state > 2) return;
+    value = BQ32000_CHARGE_ENABLE;
+    if (state == 2) {
+        // High voltage charge enable:
+        value |= (1 << BQ32000__TCFE);
+    }
+    writeRegister(BQ32000_CFG2, value);
+    // Now enable charger:
+    writeRegister(BQ32000_TCH2, 1 << BQ32000__TCH2_BIT);
+}
+
+
+uint8_t RTC_BQ32000::readRegister(uint8_t address) {
+    /* Read and return the value in the register at the given address.
+     */
+    Wire.beginTransmission(BQ32000_ADDRESS);
+    Wire.write((byte) address);
+    Wire.endTransmission();
+    Wire.requestFrom(BQ32000_ADDRESS, 1);
+    // Get register state:
+    return Wire.read();
+}
+
+uint8_t RTC_BQ32000::writeRegister(uint8_t address, uint8_t value) {
+    /* Write the given value to the register at the given address.
+     */
+    Wire.beginTransmission(BQ32000_ADDRESS);
+    Wire.write(address);
+    Wire.write(value);
+    Wire.endTransmission();
+}
+
+uint8_t RTC_BQ32000::isrunning() {
+    return !(readRegister(0x0)>>7);
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// RTC_BQ32000 implementation
+// RTC_Millis implementation
 
-static uint8_t bcd2bin (uint8_t val) { return val - 6 * (val >> 4); }
-static uint8_t bin2bcd (uint8_t val) { return val + 6 * (val / 10); }
+long RTC_Millis::offset = 0;
 
-boolean RTC_BQ32000::begin(void) {
-    Wire.pins(RTC_SDA_PIN, RTC_SCL_PIN);
-    Wire.begin();
-    // enable charger
-    Wire.beginTransmission(BQ32000_ADDRESS);
-    Wire._I2C_WRITE((byte)9);
-    Wire._I2C_WRITE((byte)0x05);
-    Wire._I2C_WRITE((byte)8);
-    Wire._I2C_WRITE((byte)0x20);
-    Wire._I2C_WRITE((byte)9);
-    Wire._I2C_WRITE((byte)0x45);
-    Wire.endTransmission();
-    // enable freq output
-    Wire.beginTransmission(BQ32000_ADDRESS);
-
-    Wire.write(BQ32000_CAL_CFG1);
-    Wire.write(BQ32000__FT);
-
-    Wire.write(BQ32000_SFR);
-    Wire.write(0x01);
-
-    Wire.endTransmission();
-
-
-    return true;
+void RTC_Millis::adjust(const DateTime& dt) {
+    offset = dt.get() - millis() / 1000;
 }
 
-uint8_t RTC_BQ32000::isrunning(void) {
-  Wire.beginTransmission(BQ32000_ADDRESS);
-  Wire._I2C_WRITE((byte)0);
-  Wire.endTransmission();
-
-  Wire.requestFrom(BQ32000_ADDRESS, 1);
-  uint8_t ss = Wire._I2C_READ();
-  return !(ss>>7);
+DateTime RTC_Millis::now() {
+    return offset + millis() / 1000;
 }
 
-void RTC_BQ32000::adjust(const DateTime& dt) {
-  Wire.beginTransmission(BQ32000_ADDRESS);
-  Wire._I2C_WRITE((byte)0); // start at location 0
-  Wire._I2C_WRITE(bin2bcd(dt.second()));
-  Wire._I2C_WRITE(bin2bcd(dt.minute()));
-  Wire._I2C_WRITE(bin2bcd(dt.hour()));
-  Wire._I2C_WRITE(bin2bcd(0));
-  Wire._I2C_WRITE(bin2bcd(dt.day()));
-  Wire._I2C_WRITE(bin2bcd(dt.month()));
-  Wire._I2C_WRITE(bin2bcd(dt.year() - 2000));
-  Wire.endTransmission();
-}
-
-
-DateTime RTC_BQ32000::now() {
-  Wire.beginTransmission(BQ32000_ADDRESS);
-  Wire._I2C_WRITE((byte)0);
-  Wire.endTransmission();
-
-  Wire.requestFrom(BQ32000_ADDRESS, 7);
-  uint8_t ss = bcd2bin(Wire._I2C_READ() & 0x7F);
-  uint8_t mm = bcd2bin(Wire._I2C_READ());
-  uint8_t hh = bcd2bin(Wire._I2C_READ());
-  Wire._I2C_READ();
-  uint8_t d = bcd2bin(Wire._I2C_READ());
-  uint8_t m = bcd2bin(Wire._I2C_READ());
-  uint16_t y = bcd2bin(Wire._I2C_READ()) + 2000;
-
-  return DateTime (y, m, d, hh, mm, ss);
-}
-
-BQ32000SqwPinMode RTC_BQ32000::readSqwPinMode() {
-  int mode;
-
-  Wire.beginTransmission(BQ32000_ADDRESS);
-  Wire._I2C_WRITE(BQ32000_CONTROL);
-  Wire.endTransmission();
-
-  Wire.requestFrom((uint8_t)BQ32000_ADDRESS, (uint8_t)1);
-  mode = Wire._I2C_READ();
-
-  mode &= 0x93;
-  return static_cast<BQ32000SqwPinMode>(mode);
-}
-
-void RTC_BQ32000::writeSqwPinMode(BQ32000SqwPinMode mode) {
-  Wire.beginTransmission(BQ32000_ADDRESS);
-  Wire._I2C_WRITE(BQ32000_CONTROL);
-  Wire._I2C_WRITE(mode);
-  Wire.endTransmission();
-}
-
-void RTC_BQ32000::readnvram(uint8_t* buf, uint8_t size, uint8_t address) {
-  int addrByte = BQ32000_NVRAM + address;
-  Wire.beginTransmission(BQ32000_ADDRESS);
-  Wire._I2C_WRITE(addrByte);
-  Wire.endTransmission();
-
-  Wire.requestFrom((uint8_t) BQ32000_ADDRESS, size);
-  for (uint8_t pos = 0; pos < size; ++pos) {
-    buf[pos] = Wire._I2C_READ();
-  }
-}
-
-void RTC_BQ32000::writenvram(uint8_t address, uint8_t* buf, uint8_t size) {
-  int addrByte = BQ32000_NVRAM + address;
-  Wire.beginTransmission(BQ32000_ADDRESS);
-  Wire._I2C_WRITE(addrByte);
-  for (uint8_t pos = 0; pos < size; ++pos) {
-    Wire._I2C_WRITE(buf[pos]);
-  }
-  Wire.endTransmission();
-}
-
-uint8_t RTC_BQ32000::readnvram(uint8_t address) {
-  uint8_t data;
-  readnvram(&data, 1, address);
-  return data;
-}
-
-void RTC_BQ32000::writenvram(uint8_t address, uint8_t data) {
-  writenvram(address, &data, 1);
-}
+////////////////////////////////////////////////////////////////////////////////

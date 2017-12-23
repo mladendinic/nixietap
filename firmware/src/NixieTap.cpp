@@ -1,147 +1,61 @@
 #include <Arduino.h>
-#include <nixie.h>
+#include <Nixie.h>
 #include <RTClib.h>
 #include <NTPClient.h>
-#include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
-#include <EasyNTPClient.h>
+#include <ESP8266WiFi.h>
+#include <DNSServer.h>
+#include <ESP8266WebServer.h>
+#include <WiFiManager.h>
 
-const char *ssid     = "Skynet";
-const char *password = "privremenasifra666";
+#define RTC_IRQ_PIN D1
+#define RTC_SDA_PIN D3
+#define RTC_SCL_PIN D4
 
-WiFiUDP ntpUDP;
-nixie display;
-RTC_BQ32000 rtc;
+void irq_1Hz_int();
+
+Nixie nixie;
+RTC_BQ32000 bq32000;
 DateTime rtc_time;
-NTPClient timeClient(ntpUDP);
-uint8_t seconds_buffer;
-uint8_t dot_state = 0;
-uint8_t timer_int = 0;
-uint8_t interrupt_counter = 0;
-uint8_t state = 0;
-uint8_t state_counter = 0;
-uint8_t adc_reading = 0;
-char i;
-const int knock_sensor = A0; // the piezo is connected to analog pin 0
-const int threshold = 5;  // threshold value to decide when the detected sound is a knock or not
-static const uint8_t PWM_PIN = 16;
-static const uint8_t IRQ_PIN = 5;
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, 60*60);
+
+volatile bool dot_state = LOW;
 
 void setup() {
-
-
     // fire up the serial
-    Serial.begin(19200);
-
-    // configure pins
-    pinMode(PWM_PIN, OUTPUT);
-    pinMode(IRQ_PIN, INPUT);
-
+    Serial.begin(115200);
+    // WiFiManager
+    WiFiManager wifiManager;
+    // fetches ssid and pass from eeprom and tries to connect
+    // if it does not connect it starts an access point with the specified name "NixieTapAP"
+    // and goes into a blocking loop awaiting configuration
+    wifiManager.autoConnect("NixieTapAP");
+    // if you get here you have connected to the WiFi
+    Serial.println("Connected to a network!");
 
     // fire up the RTC
-    rtc.begin();
+    bq32000.begin(RTC_SDA_PIN, RTC_SCL_PIN);
+    bq32000.setCharger(2);
+    bq32000.setIRQ(1);
+    timeClient.begin();
+    nixie.init();
 
     // interrupts
-    attachInterrupt(IRQ_PIN, rtc_int, RISING);
+    pinMode(RTC_IRQ_PIN, INPUT);
+    attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
 
-    // fire up the WiFi
-    WiFi.begin(ssid, password);
-    delay(3000);
-    if ( WiFi.status() == WL_CONNECTED ) {
-        // fire up the timeClient
-
-        timeClient.begin();
-        // update the local time
-        timeClient.update();
-        // send the time to the RTC
-        rtc.adjust(DateTime(2017, 17, 10,
-            timeClient.getHours()+1, timeClient.getMinutes(), timeClient.getSeconds()));
-        Serial.println("Connected");
-    }
-    else {
-        // rtc.adjust(DateTime(2017, 9, 3,
-        //     20, 3, 15));
-        Serial.println("Not connected");
-        rtc_time=rtc.now();
-    }
-
-    // fire up the Nixies
-    display.init();
-    display.write(1,2,3,4,1);
-
-
-
+    // get time from server and update it on a RTC
+    while(!timeClient.update());
+    rtc_time = timeClient.getEpochTime();
+    bq32000.adjust(rtc_time);
 }
 
 
 void loop() {
-
-    // for (i = 0; i <= 5; i++)
-    // {
-    //     adc_reading += analogRead(knock_sensor);
-    // }
-    // adc_reading = adc_reading / 5;
-
-    // adc_reading = analogRead(knock_sensor);
-    // if (adc_reading > (threshold))
-    // {
-    //     delay(5);
-    //     adc_reading = analogRead(knock_sensor);
-    //     if (adc_reading > (threshold))
-    //     {
-    //         state++;
-    //         if (state == 10) { state = 0; };
-    //         display.write(state,state,state,state,1);
-    //     }
-    // }
-    // delay(10);
-
-
-    if(timer_int)
-    {
-        timer_int = 0;
-        switch (state)
-        {
-            case 0:
-                rtc_time = rtc.now();
-                display.write_time(rtc_time, dot_state);
-                break;
-            // case 1:
-            //     rtc_time = rtc.now();
-            //     display.write_date(rtc_time, 255);
-            //     break;
-
-        }
-
-
-    }
+    nixie.write_time(bq32000.now(), dot_state);
 }
 
-void change_state()
-{
-
-}
-
-void rtc_int()
-{
-
-    interrupt_counter++;
-    if (!interrupt_counter)
-    {
-        timer_int = 1;
-        dot_state = ~dot_state;
-        state_counter++;
-        // if (state_counter == 10)
-        // {
-        //     state_counter = 0;
-        //     state++;
-        //     if (state == 2)
-        //     {
-        //         state = 0;
-        //     }
-        //
-        // }
-
-    }
-
+void irq_1Hz_int() {
+    dot_state = !dot_state;
 }

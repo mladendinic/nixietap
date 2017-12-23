@@ -1,93 +1,74 @@
-// Code by JeeLabs http://news.jeelabs.org/code/
-// Released to the public domain! Enjoy!
-// Modified to suit nixie tap project
-
+// A library for handling real-time clocks, dates, etc.
+// Simple general-purpose date/time class (no TZ / DST / leap second handling!)
 #ifndef _RTCLIB_H_
 #define _RTCLIB_H_
 
-#include <Arduino.h>
-
-#define RTC_IRQ_PIN 12
-#define RTC_SDA_PIN 4
-#define RTC_SCL_PIN 0
-
-#define BQ32000_ADDRESS  0x68
-#define BQ32000_CONTROL  0x07
-#define BQ32000_NVRAM    0x08
-
-#define SECONDS_PER_DAY 86400L
-
-#define SECONDS_FROM_1970_TO_2000 946684800
-
-// Simple general-purpose date/time class (no TZ / DST / leap second handling!)
 class DateTime {
 public:
-    DateTime (uint32_t t =0);
+    DateTime (long t =0);
     DateTime (uint16_t year, uint8_t month, uint8_t day,
                 uint8_t hour =0, uint8_t min =0, uint8_t sec =0);
-    DateTime (const DateTime& copy);
     DateTime (const char* date, const char* time);
-    DateTime (const __FlashStringHelper* date, const __FlashStringHelper* time);
+
     uint16_t year() const       { return 2000 + yOff; }
     uint8_t month() const       { return m; }
     uint8_t day() const         { return d; }
     uint8_t hour() const        { return hh; }
     uint8_t minute() const      { return mm; }
     uint8_t second() const      { return ss; }
-    uint8_t dayOfTheWeek() const;
+    uint8_t dayOfWeek() const;
 
     // 32-bit times as seconds since 1/1/2000
-    long secondstime() const;
-    // 32-bit times as seconds since 1/1/1970
-    uint32_t unixtime(void) const;
-    //
-    // DateTime operator+(const TimeSpan& span);
-    // DateTime operator-(const TimeSpan& span);
-    // TimeSpan operator-(const DateTime& right);
-
-
+    long get() const;
 
 protected:
     uint8_t yOff, m, d, hh, mm, ss;
 };
 
-// Timespan which can represent changes in time with seconds accuracy.
-// class TimeSpan {
-// public:
-//     TimeSpan (int32_t seconds = 0);
-//     TimeSpan (int16_t days, int8_t hours, int8_t minutes, int8_t seconds);
-//     TimeSpan (const TimeSpan& copy);
-//     int16_t days() const         { return _seconds / 86400L; }
-//     int8_t  hours() const        { return _seconds / 3600 % 24; }
-//     int8_t  minutes() const      { return _seconds / 60 % 60; }
-//     int8_t  seconds() const      { return _seconds % 60; }
-//     int32_t totalseconds() const { return _seconds; }
-//
-//     TimeSpan operator+(const TimeSpan& right);
-//     TimeSpan operator-(const TimeSpan& right);
-//
-// protected:
-//     int32_t _seconds;
-// };
-
-
-// RTC based on the BQ32000 chip connected via I2C and the Wire library
-enum BQ32000SqwPinMode { OFF = 0x00, ON = 0x80, SquareWave1HZ = 0x10, SquareWave4kHz = 0x11, SquareWave8kHz = 0x12, SquareWave32kHz = 0x13 };
-
+// TI BQ32000 I2C RTC
 class RTC_BQ32000 {
 public:
-    boolean begin(void);
+    static void begin(uint8_t sda, uint8_t scl);
     static void adjust(const DateTime& dt);
-    uint8_t isrunning(void);
     static DateTime now();
-    static BQ32000SqwPinMode readSqwPinMode();
-    static void writeSqwPinMode(BQ32000SqwPinMode mode);
-    uint8_t readnvram(uint8_t address);
-    void readnvram(uint8_t* buf, uint8_t size, uint8_t address);
-    void writenvram(uint8_t address, uint8_t data);
-    void writenvram(uint8_t address, uint8_t* buf, uint8_t size);
-    void enableCharger();
+    static uint8_t isrunning();
 
+    static void setIRQ(uint8_t state);
+    /* Set IRQ output state: 0=disabled, 1=1Hz, 2=512Hz.
+     */
+    static void setIRQLevel(uint8_t level);
+    /* Set IRQ output active state to LOW or HIGH.
+     */
+    static void setCalibration(int8_t value);
+    /* Sets the calibration value to given value in the range -31 - 31, which
+     * corresponds to -126ppm - +63ppm; see table 13 in th BQ32000 datasheet.
+     */
+    static void setCharger(int state);
+    /* If using a super capacitor instead of a battery for backup power, use this
+       method to set the state of the trickle charger: 0=disabled, 1=low-voltage
+       charge, 2=high-voltage charge. In low-voltage charge mode, the super cap is
+       charged through a diode with a voltage drop of about 0.5V, so it will charge
+       up to VCC-0.5V. In high-voltage charge mode the diode is bypassed and the super
+       cap will be charged up to VCC (make sure the charge voltage does not exceed your
+       super cap's voltage rating!!). */
+
+    // utility functions:
+    static uint8_t readRegister(uint8_t address);
+    static uint8_t writeRegister(uint8_t address, uint8_t value);
+    static uint8_t bcd2bin (uint8_t val) { return val - 6 * (val >> 4); }
+    static uint8_t bin2bcd (uint8_t val) { return val + 6 * (val / 10); }
+};
+
+// RTC using the internal millis() clock, has to be initialized before use
+// NOTE: this clock won't be correct once the millis() timer rolls over (>49d?)
+class RTC_Millis {
+public:
+    static void begin(const DateTime& dt) { adjust(dt); }
+    static void adjust(const DateTime& dt);
+    static DateTime now();
+
+protected:
+    static long offset;
 };
 
 #endif // _RTCLIB_H_
