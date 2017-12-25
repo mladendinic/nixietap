@@ -13,8 +13,8 @@
 #define RTC_SCL_PIN D4
 #define BUTTON D2
 
-void irq_1Hz_int();
-void buttonPressed();
+void irq_1Hz_int();     // interrupt function for changing the dot state every 1 second.
+void buttonPressed();   // interrupt function when button is pressed.
 
 Nixie nixie;
 RTC_BQ32000 bq32000;
@@ -24,10 +24,17 @@ NTPClient timeClient(ntpUDP, 60*60);
 
 volatile bool buttonState = HIGH;
 volatile bool dot_state = LOW;
+unsigned long currentMillis = 0, previousMillis = 0;
 
 void setup() {
     // fire up the serial
     Serial.begin(115200);
+
+    
+    // Initialise Nixie's
+    nixie.init();
+    nixie.write(11, 11, 11, 11, 0);
+    
     // WiFiManager
     WiFiManager wifiManager;
     // fetches ssid and pass from eeprom and tries to connect
@@ -42,7 +49,6 @@ void setup() {
     bq32000.setCharger(2);
     bq32000.setIRQ(1);
     timeClient.begin();
-    nixie.init();
 
     // RTC IRQ interrupt
     pinMode(RTC_IRQ_PIN, INPUT);
@@ -51,15 +57,19 @@ void setup() {
     pinMode(BUTTON, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, FALLING);
 
-    pinMode(BUTTON, INPUT_PULLUP);
-
     // get time from server and update it on a RTC
-    if(!timeClient.update()) {
-        Serial.println("Can't pull date from server!");
+    while(!timeClient.update()) {
+        currentMillis = millis();
+        if((currentMillis - previousMillis) > 5000) break;
+    }
+    if((currentMillis - previousMillis) > 5000) {
+        Serial.println("Can't pull time from server!");
+        nixie.write(0, 0, 0, 1, 0);
     } else {
         rtc_time = timeClient.getEpochTime();
         bq32000.adjust(rtc_time);
     }
+    delay(1000);
 }
 
 
@@ -68,7 +78,7 @@ void loop() {
     if (buttonState) {
         nixie.write_time(bq32000.now(), dot_state);
     } else {
-        nixie.write_date(bq32000.now(), dot_state);
+        nixie.write_date(bq32000.now(), 1);
     }
 }
 
