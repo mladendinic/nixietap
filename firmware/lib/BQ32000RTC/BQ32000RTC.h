@@ -1,37 +1,23 @@
-// A library for handling real-time clocks, dates, etc.
-// Simple general-purpose date/time class (no TZ / DST / leap second handling!)
-#ifndef _RTCLIB_H_
-#define _RTCLIB_H_
+/*
+ * BQ32000RTC.h - library for BQ32000 RTC
+ * This library is intended to be uses with Arduino Time library functions
+ */
 
-class DateTime {
+#ifndef _BQ32000RTC_h
+#define _BQ32000RTC_h
+
+#include <TimeLib.h>
+
+class BQ32000RTC {
 public:
-    DateTime (long t =0);
-    DateTime (uint16_t year, uint8_t month, uint8_t day,
-                uint8_t hour =0, uint8_t min =0, uint8_t sec =0);
-    DateTime (const char* date, const char* time);
-
-    uint16_t year() const       { return 2000 + yOff; }
-    uint8_t month() const       { return m; }
-    uint8_t day() const         { return d; }
-    uint8_t hour() const        { return hh; }
-    uint8_t minute() const      { return mm; }
-    uint8_t second() const      { return ss; }
-    uint8_t dayOfWeek() const;
-
-    // 32-bit times as seconds since 1/1/2000
-    long get() const;
-
-protected:
-    uint8_t yOff, m, d, hh, mm, ss;
-};
-
-// TI BQ32000 I2C RTC
-class RTC_BQ32000 {
-public:
+    BQ32000RTC();
     static void begin(uint8_t sda, uint8_t scl);
-    static void adjust(const DateTime& dt);
-    static DateTime now();
-    static uint8_t isrunning();
+    static time_t get();
+    static bool set(time_t t);
+    static bool read(tmElements_t &tm);
+    static bool write(tmElements_t &tm);
+    static bool chipPresent() { return exists; }
+    static unsigned char isRunning();
 
     static void setIRQ(uint8_t state);
     /* Set IRQ output state: 0=disabled, 1=1Hz, 2=512Hz.
@@ -55,20 +41,17 @@ public:
     // utility functions:
     static uint8_t readRegister(uint8_t address);
     static uint8_t writeRegister(uint8_t address, uint8_t value);
+
+private:
+    static bool exists;
     static uint8_t bcd2bin (uint8_t val) { return val - 6 * (val >> 4); }
     static uint8_t bin2bcd (uint8_t val) { return val + 6 * (val / 10); }
 };
 
-// RTC using the internal millis() clock, has to be initialized before use
-// NOTE: this clock won't be correct once the millis() timer rolls over (>49d?)
-class RTC_Millis {
-public:
-    static void begin(const DateTime& dt) { adjust(dt); }
-    static void adjust(const DateTime& dt);
-    static DateTime now();
+#ifdef RTC
+#undef RTC // workaround for Arduino Due, which defines "RTC"...
+#endif
 
-protected:
-    static long offset;
-};
+extern BQ32000RTC RTC;
 
-#endif // _RTCLIB_H_
+#endif // _BQ32000RTC_h

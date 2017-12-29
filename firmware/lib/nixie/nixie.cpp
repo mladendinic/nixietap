@@ -68,13 +68,13 @@ void Nixie::write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4
     SPI.endTransaction();
 }
 
-void Nixie::write_time(const DateTime& dt, uint8_t dot_state)
+void Nixie::write_time(time_t local, bool dot_state)
 {
-    Nixie::write(dt.hour()/10, dt.hour()%10, dt.minute()/10, dt.minute()%10, dot_state*0b1000);
+    Nixie::write(hour(local)/10, hour(local)%10, minute(local)/10, minute(local)%10, dot_state*0b1000);
 
 }
-void Nixie::write_date(const DateTime& dt, uint8_t dot_state)
+void Nixie::write_date(time_t local, bool dot_state)
 {
-    Nixie::write(dt.day()/10, dt.day()%10, dt.month()/10, dt.month()%10, dot_state*0b1000);
+    Nixie::write(day(local)/10, day(local)%10, month(local)/10, month(local)%10, dot_state*0b1000);
 
 }
