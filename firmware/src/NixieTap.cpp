@@ -70,7 +70,7 @@ uint8_t timeZone = 1;
 
 void setup() {
     // fire up the serial
-    Serial.begin(115200);
+    // Serial.begin(115200);
 
     // Initialise Nixie's
     nixie.init();
@@ -135,7 +135,7 @@ void setup() {
                      localTime = utcTime;
                      break;
         }
-        setTime(localTime);
+        // setTime(localTime);
         bq32000.set(localTime);
         setSyncProvider(RTC.get);
         setSyncInterval(1);
