@@ -135,7 +135,6 @@ void setup() {
                      localTime = utcTime;
                      break;
         }
-        // setTime(localTime);
         bq32000.set(localTime);
         setSyncProvider(RTC.get);
         setSyncInterval(1);
