@@ -1,0 +1,12 @@
+{
+    "terminal.integrated.env.windows": {
+        "PATH": "C:\\Users\\mmarc\\.platformio\\penv\\Scripts;C:\\Python27\\;C:\\Python27\\Scripts;C:\\Users\\mmarc\\Anaconda3;C:\\Program Files (x86)\\Skype\\Phone\\;C:\\Program Files\\LLVM\\bin;C:\\Users\\mmarc\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Program Files\\Microsoft VS Code\\bin;C:\\Users\\mmarc\\AppData\\Local\\atom\\bin;C:\\Python27\\;C:\\Python27\\Scripts;C:\\Users\\mmarc\\Anaconda3;C:\\Program Files (x86)\\Skype\\Phone\\;C:\\Program Files\\LLVM\\bin;C:\\Users\\mmarc\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Program Files\\Microsoft VS Code\\bin;C:\\Users\\mmarc\\AppData\\Local\\atom\\bin"
+    },
+    "files.associations": {
+        "array": "cpp",
+        "initializer_list": "cpp",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp"
+    }
+}

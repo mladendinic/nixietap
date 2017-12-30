@@ -1,30 +1,19 @@
-#ifndef NIXIE_H_   /* Include guard */
-#define NIXIE_H_
+#ifndef _NIXIE_h   /* Include guard */
+#define _NIXIE_h
 
-#include "RTClib.h"
+#include <TimeLib.h>
 
-class nixie
+class Nixie
 {
-    static const uint8_t H1_DOT;
-    static const uint8_t H0_DOT;
-    static const uint8_t M1_DOT;   // CHECK IN HARDWARE!!!!
-    static const uint8_t M0_DOT;    // CHECK IN HARDWARE!!!
-    static const uint8_t PSU_EN;
     static const uint8_t SPI_CS;
     static const uint16_t pinmap[11];
 
-    public:
-        nixie(void);
-        void init(void);
-        void write(
-            uint8_t digit1,
-            uint8_t digit2,
-            uint8_t digit3,
-            uint8_t digit4,
-            uint8_t dots);
-        void write_time(const DateTime&, uint8_t dot_state);
-        void write_date(const DateTime&, uint8_t dot_state);
+public:
+    static void init();
+    static void write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots);
+    static void write_time(time_t local, bool dot_state);
+    static void write_date(time_t local, bool dot_state);
 
 };
 
-#endif // NIXIE_H_
+#endif // _NIXIE_h
