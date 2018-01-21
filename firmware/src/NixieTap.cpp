@@ -24,6 +24,7 @@ time_t utcTime, localTime;
 time_t prevDisplay = 0; // when the digital clock was displayed
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
+uint8_t state = 0;
 
 //Australia Eastern Time Zone (Sydney, Melbourne)
 TimeChangeRule aEDT = {"AEDT", First, Sun, Oct, 2, 660};    //UTC + 11 hours
@@ -143,17 +144,20 @@ void setup() {
 }
 
 void loop() {
-    if(timeStatus() == timeSet) {
-        // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse.
-        if(now() != prevDisplay) { //update the display only if time has changed
-            prevDisplay = now();
-            if(buttonState) {
+   
+    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse.    
+    switch (state) {
+        case 0: // Display time
+            if(now() != prevDisplay) { //update the display only if time has changed
+                prevDisplay = now();
                 nixie.write_time(bq32000.get(), dot_state);
-            } else {
-                nixie.write_date(bq32000.get(), 1);
-            }
-        }
+            }   
+            break;
+        case 1: // Display date
+            nixie.write_date(bq32000.get(), 1);
+            break;
     }
+
 }
 
 void irq_1Hz_int() {
@@ -162,4 +166,7 @@ void irq_1Hz_int() {
 
 void buttonPressed() {
     buttonState = !buttonState;
+    state++;
+    if (state == 2) state = 0;
+    Serial.println(state);
 }
