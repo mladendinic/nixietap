@@ -10,10 +10,10 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
-#define RTC_IRQ_PIN D1
-#define RTC_SDA_PIN D3
-#define RTC_SCL_PIN D4
-#define BUTTON D2
+#define RTC_IRQ_PIN 5
+#define RTC_SDA_PIN 0
+#define RTC_SCL_PIN 2
+#define BUTTON 4
 
 void irq_1Hz_int();     // interrupt function for changing the dot state every 1 second.
 void buttonPressed();   // interrupt function when button is pressed.
@@ -69,23 +69,36 @@ volatile bool dot_state = LOW;
 unsigned long currentMillis = 0, previousMillis = 0;
 uint8_t timeZone = 1;
 
+void scroll_dots() {
+    nixie.write(11, 11, 11, 11, 0b10);
+    delay(150);
+    nixie.write(11, 11, 11, 11, 0b100);
+    delay(150);
+    nixie.write(11, 11, 11, 11, 0b1000);
+    delay(150);
+    nixie.write(11, 11, 11, 11, 0b10000);
+    delay(150);
+    nixie.write(11, 11, 11, 11, 0);
+    delay(150);
+}
+
 void setup() {
     // fire up the serial
     Serial.begin(115200);
 
     // Initialise Nixie's
     nixie.init();
-    nixie.write(11, 11, 11, 11, 0);
-
+    scroll_dots();
     // WiFiManager
     WiFiManager wifiManager;
     // fetches ssid and pass from eeprom and tries to connect
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
     // and goes into a blocking loop awaiting configuration
+    scroll_dots();
     wifiManager.autoConnect("NixieTapAP");
     // if you get here you have connected to the WiFi
     Serial.println("Connected to a network!");
-
+    scroll_dots();
     // fire up the RTC
     bq32000.begin(RTC_SDA_PIN, RTC_SCL_PIN);
     bq32000.setCharger(2);

@@ -4,11 +4,13 @@
         {
             "type": "gdb",
             "request": "launch",
-            "cwd": "${workspaceRoot}",
+            "cwd": "${workspaceFolder}",
             "name": "PlatformIO Debugger",
-            "target": "g:/Hard drive backup/Onedrive/Projects/40 Nixie Clock/30 Software/firmware/.pioenvs/nodemcu/firmware.elf",
+            "target": "g:/Hard drive backup/Onedrive/Projects/40 Nixie Clock/30 Software/firmware/.pioenvs/esp12e/firmware.elf",
             "gdbpath": "C:/Users/Mladen/.platformio/penv/Scripts/piodebuggdb",
-            "autorun": [ "source .pioinit" ]
+            "autorun": [ "source .pioinit" ],
+            "preLaunchTask": "PlatformIO: Pre-Debug",
+            "internalConsoleOptions": "openOnSessionStart"
         }
     ]
 }
