@@ -3,3 +3,5 @@
 .vscode/c_cpp_properties.json
 .clang_complete
 .gcc-flags.json
+.vscode/launch.json
+.vscode/settings.json
