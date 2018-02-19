@@ -10,21 +10,25 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
-#define RTC_IRQ_PIN 5
-#define RTC_SDA_PIN 0
-#define RTC_SCL_PIN 2
-#define BUTTON 4
+void irq_1Hz_int();     // Interrupt function for changing the dot state every 1 second.
+void buttonPressed();   // Interrupt function when button is pressed.
+void startScrollingDots();
+void stopScrollingDots();
+void scroll_dots(); // Interrupt function for scrolling dots.
 
-void irq_1Hz_int();     // interrupt function for changing the dot state every 1 second.
-void buttonPressed();   // interrupt function when button is pressed.
+volatile bool buttonState = HIGH, dot_state = LOW;
+unsigned long currentMillis = 0, previousMillis = 0;
+volatile uint8_t state = 0, tuchState = 0, dotPosition = 0;
+volatile uint16_t counter = 0;
+bool timeClientFlag = true;
+uint8_t timeZone = 1;
 
-Nixie nixie;
+Nixie nixieTap;
 BQ32000RTC bq32000;
 time_t utcTime, localTime;
 time_t prevDisplay = 0; // when the digital clock was displayed
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
-uint8_t state = 0;
 
 //Australia Eastern Time Zone (Sydney, Melbourne)
 TimeChangeRule aEDT = {"AEDT", First, Sun, Oct, 2, 660};    //UTC + 11 hours
@@ -64,113 +68,161 @@ TimeChangeRule usPDT = {"PDT", Second, dowSunday, Mar, 2, -420};
 TimeChangeRule usPST = {"PST", First, dowSunday, Nov, 2, -480};
 Timezone usPT(usPDT, usPST);
 
-volatile bool buttonState = HIGH;
-volatile bool dot_state = LOW;
-unsigned long currentMillis = 0, previousMillis = 0;
-uint8_t timeZone = 1;
-
-void scroll_dots() {
-    nixie.write(11, 11, 11, 11, 0b10);
-    delay(150);
-    nixie.write(11, 11, 11, 11, 0b100);
-    delay(150);
-    nixie.write(11, 11, 11, 11, 0b1000);
-    delay(150);
-    nixie.write(11, 11, 11, 11, 0b10000);
-    delay(150);
-    nixie.write(11, 11, 11, 11, 0);
-    delay(150);
-}
-
 void setup() {
     // fire up the serial
     Serial.begin(115200);
-
     // Initialise Nixie's
-    nixie.init();
-    scroll_dots();
+    nixieTap.init();
+    nixieTap.write(11, 11, 11, 11, 0);
+    startScrollingDots();
     // WiFiManager
     WiFiManager wifiManager;
-    // fetches ssid and pass from eeprom and tries to connect
+    // wifiManager.resetSettings();
+    // Sets timeout(in seconds) until configuration portal gets turned off.
+    wifiManager.setTimeout(600);
+    // Fetches ssid and pass from eeprom and tries to connect,
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
-    // and goes into a blocking loop awaiting configuration
-    scroll_dots();
-    wifiManager.autoConnect("NixieTapAP");
-    // if you get here you have connected to the WiFi
+    // and goes into a blocking loop awaiting configuration.
+    if(!wifiManager.autoConnect("NixieTapAP", "Nixie123")) {
+        Serial.println("Failed to connect and hit timeout!");
+        // Nixie display will show this error code:
+        nixieTap.write(0, 0, 0, 2, 0);
+        delay(3000);
+    }
+    // If you get here you have connected to the WiFi.
     Serial.println("Connected to a network!");
-    scroll_dots();
-    // fire up the RTC
-    bq32000.begin(RTC_SDA_PIN, RTC_SCL_PIN);
-    bq32000.setCharger(2);
-    bq32000.setIRQ(1);
+    // Run the NTPC client.
     timeClient.begin();
 
-    // RTC IRQ interrupt
-    pinMode(RTC_IRQ_PIN, INPUT);
-    attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
-    // Touch button interrupt
-    pinMode(BUTTON, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, FALLING);
-
-    // get time from server and update it on a RTC
+    currentMillis = millis();
+    previousMillis = currentMillis;
+    // Get time from the server and update it on a RTC.
     while(!timeClient.update()) {
         currentMillis = millis();
-        if((currentMillis - previousMillis) > 5000)
-        break;
+        if((currentMillis - previousMillis) > 10000) {
+            timeClientFlag = false;
+            break;
+        }
     }
-    if((currentMillis - previousMillis) > 5000) {
-        Serial.println("Can't pull time from server!");
-        nixie.write(0, 0, 0, 1, 0);
+    if(!timeClientFlag) {
+        Serial.println("Can not pull time from the server!");
+        // Nixie display will show this error code:
+        nixieTap.write(0, 0, 0, 1, 0);
+        delay(3000);
     } else {
-        utcTime = timeClient.getEpochTime();
         switch(timeZone) {
             case 0: //Australia Eastern Time Zone (Sydney, Melbourne)
-                    localTime = ausET.toLocal(utcTime);
+                    localTime = ausET.toLocal(timeClient.getEpochTime());
                     break;
             case 1: //Central European Time (Frankfurt, Paris, Belgrade)
-                    localTime = CE.toLocal(utcTime);
+                    localTime = CE.toLocal(timeClient.getEpochTime());
                     break;
             case 2: //United Kingdom (London, Belfast)
-                    localTime = UK.toLocal(utcTime);
+                    localTime = UK.toLocal(timeClient.getEpochTime());
                     break;
             case 3: //US Eastern Time Zone (New York, Detroit)
-                    localTime = usET.toLocal(utcTime);
+                    localTime = usET.toLocal(timeClient.getEpochTime());
                     break;
             case 4: //US Central Time Zone (Chicago, Houston)
-                    localTime = usCT.toLocal(utcTime);
+                    localTime = usCT.toLocal(timeClient.getEpochTime());
                     break;
             case 5: //US Mountain Time Zone (Denver, Salt Lake City)
-                    localTime = usMT.toLocal(utcTime);
+                    localTime = usMT.toLocal(timeClient.getEpochTime());
                     break;
             case 6: //US Pacific Time Zone (Las Vegas, Los Angeles)
-                    localTime = usPT.toLocal(utcTime);
+                    localTime = usPT.toLocal(timeClient.getEpochTime());
                     break;
             default: // Leave time zone as UTC
-                     localTime = utcTime;
+                     localTime = timeClient.getEpochTime();
                      break;
         }
         setTime(localTime);
         bq32000.set(localTime);
-        setSyncProvider(RTC.get);
-        setSyncInterval(1);
     }
+    setSyncProvider(RTC.get);
+    setSyncInterval(1);
+    stopScrollingDots();
+
+    // RTC IRQ interrupt.
+    attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
+    // Touch button interrupt.
+    attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, FALLING);
 }
 
 void loop() {
-   
-    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse.    
+    currentMillis = millis();
+    // By tapping the button 5 times in a time gap of a 800 ms. You can manually start the WiFi Manager and access its settings.
+    if(tuchState == 1) previousMillis = currentMillis;
+    if((tuchState >= 5) && ((currentMillis - previousMillis) < 800)) {
+        // This will run a new config portal if the conditions are met.
+        startScrollingDots();
+        WiFiManager wifiManager;
+        wifiManager.resetSettings();
+        // Sets timeout(in seconds) until configuration portal gets turned off.
+        wifiManager.setTimeout(600);
+        if(!wifiManager.startConfigPortal("NixieTapAP", "Nixie123")) {
+            Serial.println("Failed to connect and hit timeout!");
+            // Nixie display will show this error code:
+            nixieTap.write(0, 0, 0, 2, 0);
+            delay(3000);
+        }
+        // If you get here you have connected to the config portal.
+        Serial.println("Connected to a new config portal!");
+        tuchState = 0;
+        stopScrollingDots();
+    } else if((currentMillis - previousMillis) > 800) tuchState = 0;
+    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse.
+    if (state == 2) state = 0;
     switch (state) {
         case 0: // Display time
             if(now() != prevDisplay) { //update the display only if time has changed
                 prevDisplay = now();
-                nixie.write_time(bq32000.get(), dot_state);
+                nixieTap.write_time(bq32000.get(), dot_state);
             }   
             break;
         case 1: // Display date
-            nixie.write_date(bq32000.get(), 1);
+            nixieTap.write_date(bq32000.get(), 1);
             break;
     }
 
+}
+
+void startScrollingDots() 
+{
+    detachInterrupt(RTC_IRQ_PIN);
+    attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), scroll_dots, FALLING);
+    bq32000.setIRQ(2);
+
+}
+void stopScrollingDots()
+{
+    detachInterrupt(RTC_IRQ_PIN);
+    attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
+    bq32000.setIRQ(1);
+}
+
+void scroll_dots()
+{
+    counter++;
+    if(counter >= DOTS_MOVING_SPEED) {
+        if(dotPosition == 0) {
+            nixieTap.write(11, 11, 11, 11, 0b10);
+            dotPosition++;
+        } else if(dotPosition == 1) {
+              nixieTap.write(11, 11, 11, 11, 0b100);
+              dotPosition++;
+          } else if(dotPosition == 2) {
+                nixieTap.write(11, 11, 11, 11, 0b1000);
+                dotPosition++;
+            } else if(dotPosition == 3) {
+                  nixieTap.write(11, 11, 11, 11, 0b10000);
+                  dotPosition++;
+              } else {
+                    nixieTap.write(11, 11, 11, 11, 0);
+                    dotPosition = 0;
+                }
+        counter = 0;
+    }
 }
 
 void irq_1Hz_int() {
@@ -179,7 +231,6 @@ void irq_1Hz_int() {
 
 void buttonPressed() {
     buttonState = !buttonState;
+    tuchState++;
     state++;
-    if (state == 2) state = 0;
-    Serial.println(state);
 }
