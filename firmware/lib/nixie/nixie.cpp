@@ -2,7 +2,8 @@
 #include <Arduino.h>
 #include "Nixie.h"
 
-const uint8_t Nixie::SPI_CS = D8;
+// volatile uint8_t dotPosition = 0;
+// volatile uint16_t counter = 0;
 const uint16_t Nixie::pinmap[11] =
 {
     0b0000010000, // 0
@@ -18,6 +19,8 @@ const uint16_t Nixie::pinmap[11] =
     0b0000000000  // digit off
 };
 
+BQ32000RTC BQ32000;
+
 /**
 * Initialize the display
 *
@@ -27,7 +30,13 @@ void Nixie::init()
 {
     // Set SPI chip select as output
     pinMode(SPI_CS, OUTPUT);
-
+    // Configure the ESP to receive interrupts from a RTC. 
+    pinMode(RTC_IRQ_PIN, INPUT);
+    // Initialise the integrated button in a NixieTap as a input. 
+    pinMode(BUTTON, INPUT_PULLUP);
+    // fire up the RTC
+    BQ32000.begin(RTC_SDA_PIN, RTC_SCL_PIN);
+    BQ32000.setCharger(2);
 }
 /**
 * Change the state of the nixie Display
@@ -67,7 +76,6 @@ void Nixie::write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4
     digitalWrite(SPI_CS, HIGH);
     SPI.endTransaction();
 }
-
 void Nixie::write_time(time_t local, bool dot_state)
 {
     Nixie::write(hour(local)/10, hour(local)%10, minute(local)/10, minute(local)%10, dot_state*0b1000);
@@ -78,3 +86,38 @@ void Nixie::write_date(time_t local, bool dot_state)
     Nixie::write(day(local)/10, day(local)%10, month(local)/10, month(local)%10, dot_state*0b1000);
 
 }
+// void Nixie::startScrollingDots() 
+// {
+//     detachInterrupt(RTC_IRQ_PIN);
+//     attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), scroll_dots, FALLING);
+//     BQ32000.setIRQ(2);
+// }
+// void Nixie::stopScrollingDots()
+// {
+//     detachInterrupt(RTC_IRQ_PIN);
+//     // attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
+//     BQ32000.setIRQ(1);
+// }
+// void scroll_dots()
+// {
+//     counter++;
+//     if(counter >= DOTS_MOVING_SPEED) {
+//         if(dotPosition == 0) {
+//             Nixie::write(11, 11, 11, 11, 0b10);
+//             dotPosition++;
+//         } else if(dotPosition == 1) {
+//               Nixie::write(11, 11, 11, 11, 0b100);
+//               dotPosition++;
+//           } else if(dotPosition == 2) {
+//                 Nixie::write(11, 11, 11, 11, 0b1000);
+//                 dotPosition++;
+//             } else if(dotPosition == 3) {
+//                   Nixie::write(11, 11, 11, 11, 0b10000);
+//                   dotPosition++;
+//               } else {
+//                     Nixie::write(11, 11, 11, 11, 0);
+//                     dotPosition = 0;
+//                 }
+//         counter = 0;
+//     }
+// }

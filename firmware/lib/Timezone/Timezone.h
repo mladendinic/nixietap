@@ -16,7 +16,7 @@
 #else
 #include <WProgram.h> 
 #endif
-#include <Time.h>
+#include <TimeLib.h>
 
 //convenient constants for dstRules
 enum week_t {Last, First, Second, Third, Fourth}; 
