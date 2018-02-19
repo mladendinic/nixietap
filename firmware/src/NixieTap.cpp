@@ -10,6 +10,7 @@
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
+
 void irq_1Hz_int();     // Interrupt function for changing the dot state every 1 second.
 void buttonPressed();   // Interrupt function when button is pressed.
 void startScrollingDots();
@@ -72,6 +73,7 @@ void setup() {
     // fire up the serial
     Serial.begin(115200);
     // Initialise Nixie's
+
     nixieTap.init();
     nixieTap.write(11, 11, 11, 11, 0);
     startScrollingDots();
@@ -171,8 +173,8 @@ void loop() {
         tuchState = 0;
         stopScrollingDots();
     } else if((currentMillis - previousMillis) > 800) tuchState = 0;
-    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse.
-    if (state == 2) state = 0;
+    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse. 
+    if (state == 2) state = 0;  
     switch (state) {
         case 0: // Display time
             if(now() != prevDisplay) { //update the display only if time has changed
@@ -223,6 +225,7 @@ void scroll_dots()
                 }
         counter = 0;
     }
+
 }
 
 void irq_1Hz_int() {

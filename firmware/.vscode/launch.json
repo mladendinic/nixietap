@@ -6,8 +6,13 @@
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "name": "PlatformIO Debugger",
-            "target": "d:/1. Marko/Elektronika/Projekti/Nixie tap/nixietap/firmware/.pioenvs/esp12e/firmware.elf",
-            "gdbpath": "C:/Users/mmarc/.platformio/penv/Scripts/piodebuggdb",
+
+            // "target": "d:/1. Marko/Elektronika/Projekti/Nixie tap/nixietap/firmware/.pioenvs/esp12e/firmware.elf",
+            // "gdbpath": "C:/Users/mmarc/.platformio/penv/Scripts/piodebuggdb",
+
+            "target": "g:/Hard drive backup/Onedrive/Projects/40 Nixie Clock/30 Software/firmware/.pioenvs/esp12e/firmware.elf",
+            "gdbpath": "C:/Users/Mladen/.platformio/penv/Scripts/piodebuggdb",
+          
             "autorun": [ "source .pioinit" ],
             "preLaunchTask": "PlatformIO: Pre-Debug",
             "internalConsoleOptions": "openOnSessionStart"
