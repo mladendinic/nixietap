@@ -16,6 +16,7 @@ void buttonPressed();   // Interrupt function when button is pressed.
 void startScrollingDots();
 void stopScrollingDots();
 void scroll_dots(); // Interrupt function for scrolling dots.
+void checkForAPInvoke(); // Checks if the user tapped 5 times in a rapid succession. If yes, invokes AP mode
 
 volatile bool buttonState = HIGH, dot_state = LOW;
 unsigned long currentMillis = 0, previousMillis = 0;
@@ -152,6 +153,25 @@ void setup() {
 }
 
 void loop() {
+    checkForAPInvoke();
+    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse. 
+    if (state == 2) state = 0;  
+    switch (state) {
+        case 0: // Display time
+            if(now() != prevDisplay) { //update the display only if time has changed
+                prevDisplay = now();
+                nixieTap.write_time(bq32000.get(), dot_state);
+            }   
+            break;
+        case 1: // Display date
+            nixieTap.write_date(bq32000.get(), 1);
+            break;
+    }
+
+}
+
+void checkForAPInvoke()
+{
     currentMillis = millis();
     // By tapping the button 5 times in a time gap of a 800 ms. You can manually start the WiFi Manager and access its settings.
     if(tuchState == 1) previousMillis = currentMillis;
@@ -173,20 +193,6 @@ void loop() {
         tuchState = 0;
         stopScrollingDots();
     } else if((currentMillis - previousMillis) > 800) tuchState = 0;
-    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse. 
-    if (state == 2) state = 0;  
-    switch (state) {
-        case 0: // Display time
-            if(now() != prevDisplay) { //update the display only if time has changed
-                prevDisplay = now();
-                nixieTap.write_time(bq32000.get(), dot_state);
-            }   
-            break;
-        case 1: // Display date
-            nixieTap.write_date(bq32000.get(), 1);
-            break;
-    }
-
 }
 
 void startScrollingDots() 
