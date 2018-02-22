@@ -34,7 +34,7 @@ struct TimeChangeRule
     uint8_t hour;      //0-23
     int offset;        //offset from UTC in minutes
 };
-        
+
 class Timezone
 {
     public:
