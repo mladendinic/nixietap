@@ -19,14 +19,14 @@ void checkForAPInvoke();    // Checks if the user tapped 5 times in a rapid succ
 
 volatile bool buttonState = HIGH, dot_state = LOW;
 unsigned long currentMillis = 0, previousMillis = 0;
-volatile uint8_t state = 0, tuchState = 0, dotPosition = 0;
+volatile uint8_t state = 0, tuchState = 0, dotPosition = 0b10;
 volatile uint16_t counter = 0;
 bool timeClientFlag = true;
 
 Nixie nixieTap;
 BQ32000RTC bq32000;
 time_t utcTime, localTime;
-time_t prevDisplay = 0; // When the digital clock was displayed.
+time_t prevTime = 0;   // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
 
@@ -35,17 +35,19 @@ TimeChangeRule SDT = {"SDT", Last, Sun, Mar, 2, 120};     // Standard daylight t
 TimeChangeRule DST = {"DST", Last, Sun, Oct, 3, 60};      // Daylight saving time
 Timezone TZ(SDT, DST);
 Timezone* timezones[] = { &TZ };
-Timezone* tz;                   //Pointer to the time zone.
-uint8_t tzIndex = 0;            //Indexes the timezones[] array.
+Timezone* tz;                   // Pointer to the time zone.
+uint8_t tzIndex = 0;            // Index of the timezones[] array.
 
 void setup() {
     // Fire up the serial.
     Serial.begin(115200);
     // Initialise Nixie's.
     nixieTap.init();
+    // Turn off the Nixie tubes. If this is not called nixies might show some random stuff on startup.
     nixieTap.write(11, 11, 11, 11, 0);
+    // Start scrolling dots on a Nixie tubes while the starting procedure is in proces.
     startScrollingDots();
-    // WiFiManager
+    // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
     WiFiManager wifiManager;
     // wifiManager.resetSettings();
     // Sets timeout(in seconds) until configuration portal gets turned off.
@@ -61,7 +63,7 @@ void setup() {
     }
     // If you get here you have connected to the WiFi.
     Serial.println("Connected to a network!");
-    // Run the NTPC client.
+    // Run the NTPC client. This function requests the UTC time from a server.
     timeClient.begin();
 
     currentMillis = millis();
@@ -80,15 +82,17 @@ void setup() {
         nixieTap.write(0, 0, 0, 1, 0);
         delay(3000);
     } else {
-        // Requests UTC time from the server and modifies it depending on the selected time zone. 
+        // Modifies UTC depending on the selected time zone. 
         // After that the time is sent to the RTC and Time library.
         tz = timezones[tzIndex];
         localTime = (*tz).toLocal(timeClient.getEpochTime());
         setTime(localTime);
         bq32000.set(localTime);
     }
-    setSyncProvider(RTC.get);
-    setSyncInterval(1);
+    setSyncProvider(RTC.get);   // Tells the time library from where to sink the time.
+    setSyncInterval(1);         // Sync interval is in seconds.
+
+    // If this function is not called or don't have a proper place in the code, one second dot status in time display mode will not work properly.
     stopScrollingDots();
 
     // RTC IRQ interrupt.
@@ -98,18 +102,21 @@ void setup() {
 }
 
 void loop() {
-    checkForAPInvoke();
-    // When the button is pressed nixie display will change the displaying mode from time to date, and vice verse. 
-    if (state == 2) state = 0;  
+    checkForAPInvoke(); // Allows you to manually start the access point on demand. (By tapping the button 5 times in a rapid succesion)
+    // When the button is pressed nixie tubes will change the displaying mode from time to date, and vice verse. 
+    if (state >= 2) state = 0;  
     switch (state) {
-        case 0: // Display time
-            if(now() != prevDisplay) { //update the display only if time has changed
-                prevDisplay = now();
+        case 0: // Display time.
+            if(now() != prevTime) { // Update the display only if time has changed.
+                prevTime = now();
                 nixieTap.write_time(bq32000.get(), dot_state);
             }   
             break;
-        case 1: // Display date
+        case 1: // Display date.
             nixieTap.write_date(bq32000.get(), 1);
+            break;
+        default:
+            Serial.println("Error. Unknown state of a button!");
             break;
     }
 
@@ -141,39 +148,25 @@ void checkForAPInvoke() {
 
 void startScrollingDots() {
     detachInterrupt(RTC_IRQ_PIN);
+    bq32000.setIRQ(2); // Configures the 512Hz interrupt from RTC.
     attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), scroll_dots, FALLING);
-    bq32000.setIRQ(2);
 
 }
 
 void stopScrollingDots() {
     detachInterrupt(RTC_IRQ_PIN);
+    bq32000.setIRQ(1);  // Configures the 1Hz interrupt from RTC.
     attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
-    bq32000.setIRQ(1);
 }
 
 void scroll_dots() {
     counter++;
     if(counter >= DOTS_MOVING_SPEED) {
-        if(dotPosition == 0) {
-            nixieTap.write(11, 11, 11, 11, 0b10);
-            dotPosition++;
-        } else if(dotPosition == 1) {
-              nixieTap.write(11, 11, 11, 11, 0b100);
-              dotPosition++;
-          } else if(dotPosition == 2) {
-                nixieTap.write(11, 11, 11, 11, 0b1000);
-                dotPosition++;
-            } else if(dotPosition == 3) {
-                  nixieTap.write(11, 11, 11, 11, 0b10000);
-                  dotPosition++;
-              } else {
-                    nixieTap.write(11, 11, 11, 11, 0);
-                    dotPosition = 0;
-                }
+        if(dotPosition == 0b100000) dotPosition = 0b10;
+        nixieTap.write(11, 11, 11, 11, dotPosition);
+        dotPosition = dotPosition << 1;
         counter = 0;
     }
-
 }
 
 void irq_1Hz_int() {
