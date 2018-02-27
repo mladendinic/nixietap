@@ -52,7 +52,7 @@ void setup() {
     // Fetches ssid and pass from eeprom and tries to connect,
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
     // and goes into a blocking loop awaiting configuration.
-    if(!wifiManager.startConfigPortal("NixieTap", "Nixie123")) {
+    if(!wifiManager.autoConnect("NixieTap", "Nixie123")) {
         Serial.println("Failed to connect and hit timeout!");
         // Nixie display will show this error code:
         nixieTap.write(0, 0, 0, 2, 0);
