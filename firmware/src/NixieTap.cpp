@@ -26,17 +26,15 @@ bool timeClientFlag = true;
 Nixie nixieTap;
 BQ32000RTC bq32000;
 time_t utcTime, localTime;
-time_t prevTime = 0;   // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
+time_t prevTime = 0;        // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP);
+WiFiManager wifiManager;
 
 // Time Zone Standard and Daylight saving time.
 TimeChangeRule SDT = {"SDT", Last, Sun, Mar, 2, 120};     // Standard daylight time
 TimeChangeRule DST = {"DST", Last, Sun, Oct, 3, 60};      // Daylight saving time
 Timezone TZ(SDT, DST);
-Timezone* timezones[] = { &TZ };
-Timezone* tz;                   // Pointer to the time zone.
-uint8_t tzIndex = 0;            // Index of the timezones[] array.
 
 void setup() {
     // Fire up the serial.
@@ -48,14 +46,13 @@ void setup() {
     // Start scrolling dots on a Nixie tubes while the starting procedure is in proces.
     startScrollingDots();
     // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
-    WiFiManager wifiManager;
-    // wifiManager.resetSettings();
+    // wifiManager.resetSettings(); // Implement onely if you need it. You will erase all settings and parameters in WiFiManager.
     // Sets timeout(in seconds) until configuration portal gets turned off.
     wifiManager.setTimeout(600);
     // Fetches ssid and pass from eeprom and tries to connect,
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
     // and goes into a blocking loop awaiting configuration.
-    if(!wifiManager.autoConnect("NixieTapAP", "Nixie123")) {
+    if(!wifiManager.startConfigPortal("NixieTap", "Nixie123")) {
         Serial.println("Failed to connect and hit timeout!");
         // Nixie display will show this error code:
         nixieTap.write(0, 0, 0, 2, 0);
@@ -84,8 +81,7 @@ void setup() {
     } else {
         // Modifies UTC depending on the selected time zone. 
         // After that the time is sent to the RTC and Time library.
-        tz = timezones[tzIndex];
-        localTime = (*tz).toLocal(timeClient.getEpochTime());
+        localTime = TZ.toLocal(timeClient.getEpochTime());
         setTime(localTime);
         bq32000.set(localTime);
     }
@@ -104,13 +100,13 @@ void setup() {
 void loop() {
     checkForAPInvoke(); // Allows you to manually start the access point on demand. (By tapping the button 5 times in a rapid succesion)
     // When the button is pressed nixie tubes will change the displaying mode from time to date, and vice verse. 
-    if (state >= 2) state = 0;  
+    if (state >= 2) state = 0;
     switch (state) {
         case 0: // Display time.
             if(now() != prevTime) { // Update the display only if time has changed.
                 prevTime = now();
                 nixieTap.write_time(bq32000.get(), dot_state);
-            }   
+            }
             break;
         case 1: // Display date.
             nixieTap.write_date(bq32000.get(), 1);
@@ -119,21 +115,17 @@ void loop() {
             Serial.println("Error. Unknown state of a button!");
             break;
     }
-
 }
 
 void checkForAPInvoke() {
     currentMillis = millis();
     // By tapping the button 5 times in a time gap of a 800 ms. You can manually start the WiFi Manager and access its settings.
     if(tuchState == 1) previousMillis = currentMillis;
-    if((tuchState >= 5) && ((currentMillis - previousMillis) < 800)) {
+    if((tuchState >= 5) && ((currentMillis - previousMillis) <= 1000)) {
         // This will run a new config portal if the conditions are met.
         startScrollingDots();
-        WiFiManager wifiManager;
-        wifiManager.resetSettings();
-        // Sets timeout(in seconds) until configuration portal gets turned off.
-        wifiManager.setTimeout(600);
-        if(!wifiManager.startConfigPortal("NixieTapAP", "Nixie123")) {
+        // wifiManager.resetSettings();
+        if(!wifiManager.startConfigPortal("NixieTap", "Nixie123")) {
             Serial.println("Failed to connect and hit timeout!");
             // Nixie display will show this error code:
             nixieTap.write(0, 0, 0, 2, 0);
@@ -143,19 +135,18 @@ void checkForAPInvoke() {
         Serial.println("Connected to a new config portal!");
         tuchState = 0;
         stopScrollingDots();
-    } else if((currentMillis - previousMillis) > 800) tuchState = 0;
+    } else if((currentMillis - previousMillis) > 1000) tuchState = 0;
 }
 
 void startScrollingDots() {
     detachInterrupt(RTC_IRQ_PIN);
-    bq32000.setIRQ(2); // Configures the 512Hz interrupt from RTC.
+    bq32000.setIRQ(2);              // Configures the 512Hz interrupt from RTC.
     attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), scroll_dots, FALLING);
-
 }
 
 void stopScrollingDots() {
     detachInterrupt(RTC_IRQ_PIN);
-    bq32000.setIRQ(1);  // Configures the 1Hz interrupt from RTC.
+    bq32000.setIRQ(1);              // Configures the 1Hz interrupt from RTC.
     attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
 }
 
