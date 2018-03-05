@@ -1,3 +1,4 @@
+#include <FS.h>
 #include <Arduino.h>
 #include <Nixie.h>
 #include <BQ32000RTC.h>
@@ -21,7 +22,7 @@ volatile bool buttonState = HIGH, dot_state = LOW;
 unsigned long currentMillis = 0, previousMillis = 0;
 volatile uint8_t state = 0, tuchState = 0, dotPosition = 0b10;
 volatile uint16_t counter = 0;
-bool timeClientFlag = true;
+bool timeClientFlag = true, startDef = false, stopDef = false, resetDone = true;
 
 Nixie nixieTap;
 BQ32000RTC bq32000;
@@ -46,9 +47,9 @@ void setup() {
     // Start scrolling dots on a Nixie tubes while the starting procedure is in proces.
     startScrollingDots();
     // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
-    // wifiManager.resetSettings(); // Implement onely if you need it. You will erase all settings and parameters in WiFiManager.
+    // wifiManager.resetSettings(); // Implement onely if you need it. You will erase all network settings and parameters.
     // Sets timeout(in seconds) until configuration portal gets turned off.
-    wifiManager.setTimeout(600);
+    wifiManager.setConfigPortalTimeout(600);
     // Fetches ssid and pass from eeprom and tries to connect,
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
     // and goes into a blocking loop awaiting configuration.
@@ -122,32 +123,45 @@ void checkForAPInvoke() {
     // By tapping the button 5 times in a time gap of a 800 ms. You can manually start the WiFi Manager and access its settings.
     if(tuchState == 1) previousMillis = currentMillis;
     if((tuchState >= 5) && ((currentMillis - previousMillis) <= 1000)) {
-        // This will run a new config portal if the conditions are met.
-        startScrollingDots();
-        // wifiManager.resetSettings();
-        if(!wifiManager.startConfigPortal("NixieTap", "Nixie123")) {
-            Serial.println("Failed to connect and hit timeout!");
-            // Nixie display will show this error code:
-            nixieTap.write(0, 0, 0, 2, 0);
-            delay(3000);
-        }
-        // If you get here you have connected to the config portal.
-        Serial.println("Connected to a new config portal!");
+        resetDone = false;
         tuchState = 0;
-        stopScrollingDots();
+        if(!resetDone) {
+            resetDone = true;
+            startScrollingDots();
+            wifiManager.setConfigPortalTimeout(600);
+            // This will run a new config portal if the conditions are met.
+            if(!wifiManager.startConfigPortal("NixieTap", "Nixie123")) {
+                Serial.println("Failed to connect and hit timeout!");
+                // Nixie display will show this error code:
+                nixieTap.write(0, 0, 0, 2, 0);
+                delay(3000);
+            }
+            // If you get here you have connected to the config portal.
+            Serial.println("Connected to a new config portal!");
+            stopScrollingDots();
+        }
     } else if((currentMillis - previousMillis) > 1000) tuchState = 0;
 }
 
 void startScrollingDots() {
-    detachInterrupt(RTC_IRQ_PIN);
-    bq32000.setIRQ(2);              // Configures the 512Hz interrupt from RTC.
-    attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), scroll_dots, FALLING);
+    if(startDef == false) {
+        detachInterrupt(RTC_IRQ_PIN);
+        bq32000.setIRQ(2);              // Configures the 512Hz interrupt from RTC.
+        attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), scroll_dots, FALLING);
+        startDef = true;
+        stopDef = false;
+    }
 }
 
 void stopScrollingDots() {
-    detachInterrupt(RTC_IRQ_PIN);
-    bq32000.setIRQ(1);              // Configures the 1Hz interrupt from RTC.
-    attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
+    if(stopDef == false) {
+        detachInterrupt(RTC_IRQ_PIN);
+        bq32000.setIRQ(1);              // Configures the 1Hz interrupt from RTC.
+        attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
+        dotPosition = 0b10; // Restast dot position.
+        stopDef = true;
+        startDef = false;
+    }
 }
 
 void scroll_dots() {
