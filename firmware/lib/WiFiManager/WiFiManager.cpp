@@ -98,17 +98,25 @@ const char* WiFiManagerParameter::getCustomHTML() {
 bool WiFiManager::addParameter(WiFiManagerParameter *p) {
 
   // check param id is valid
-  for (int i = 0; i < strlen(p->getID()); i++){
-     if(!isAlphaNumeric(p->getID()[i])){
-      DEBUG_WM("[ERROR] parameter IDs can only contain alpha numeric chars");
-      return false;
-     }
+  // check param id is valid, unless null
+  if(p->getID()){
+    for (int i = 0; i < strlen(p->getID()); i++){
+       if(!isAlphaNumeric(p->getID()[i])){
+        DEBUG_WM("[ERROR] parameter IDs can only contain alpha numeric chars");
+        return false;
+       }
+    }
+  }
+  if(_params == NULL){
+    DEBUG_WM("allocating params bytes:",_max_params * sizeof(WiFiManagerParameter*));        
+    _params = (WiFiManagerParameter**)malloc(_max_params * sizeof(WiFiManagerParameter*));
   }
 
   if(_paramsCount == _max_params){
     // resize the params array by increment of WIFI_MANAGER_MAX_PARAMS
     _max_params += WIFI_MANAGER_MAX_PARAMS;
     DEBUG_WM(F("Updated _max_params:"),_max_params);
+    DEBUG_WM("re-allocating params bytes:",_max_params * sizeof(WiFiManagerParameter*));    
     WiFiManagerParameter** new_params = (WiFiManagerParameter**)realloc(_params, _max_params * sizeof(WiFiManagerParameter*));
     // DEBUG_WM(WIFI_MANAGER_MAX_PARAMS);
     // DEBUG_WM(_paramsCount);
@@ -137,8 +145,7 @@ WiFiManager::WiFiManager(Stream& consolePort):_debugPort(consolePort){
   WiFiManagerInit();
 }
 
-WiFiManager::WiFiManager():_debugPort(Serial) {
-  WiFiManagerInit();
+WiFiManager::WiFiManager():WiFiManager(Serial) {
 }
 
 void WiFiManager::WiFiManagerInit(){
@@ -147,11 +154,7 @@ void WiFiManager::WiFiManagerInit(){
   WiFi.persistent(false); // disable persistent so scannetworks and mode switching do not cause overwrites
   
   setMenu(_menuIds);
-  //parameters
-  // @todo belongs to wifimanagerparameter
   _max_params = WIFI_MANAGER_MAX_PARAMS;
-  DEBUG_WM("allocating",_max_params * sizeof(WiFiManagerParameter*));
-  _params = (WiFiManagerParameter**)malloc(_max_params * sizeof(WiFiManagerParameter*));
 }
 
 // destructor
@@ -365,18 +368,18 @@ void WiFiManager::setupConfigPortal() {
   dnsServer->start(DNS_PORT, F("*"), WiFi.softAPIP());
 
   /* Setup httpd callbacks, web pages: root, wifi config pages, SO captive portal detectors and not found. */
-  server->on((String)F("/"), std::bind(&WiFiManager::handleRoot, this));
-  server->on((String)F("/wifi"), std::bind(&WiFiManager::handleWifi, this, true));
-  server->on((String)F("/0wifi"), std::bind(&WiFiManager::handleWifi, this, false));
-  server->on((String)F("/wifisave"), std::bind(&WiFiManager::handleWifiSave, this));
-  server->on((String)F("/info"), std::bind(&WiFiManager::handleInfo, this));
-  server->on((String)F("/param"), std::bind(&WiFiManager::handleParam, this));
-  server->on((String)F("/paramsave"), std::bind(&WiFiManager::handleParamSave, this));
-  server->on((String)F("/restart"), std::bind(&WiFiManager::handleReset, this));
-  server->on((String)F("/exit"), std::bind(&WiFiManager::handleExit, this));
-  server->on((String)F("/close"), std::bind(&WiFiManager::stopCaptivePortal, this));
-  server->on((String)F("/erase"), std::bind(&WiFiManager::handleErase, this));
-  server->on((String)F("/status"), std::bind(&WiFiManager::handleWiFiStatus, this));
+  server->on((String)FPSTR(R_root), std::bind(&WiFiManager::handleRoot, this));
+  server->on((String)FPSTR(R_wifi), std::bind(&WiFiManager::handleWifi, this, true));
+  server->on((String)FPSTR(R_wifinoscan), std::bind(&WiFiManager::handleWifi, this, false));
+  server->on((String)FPSTR(R_wifisave), std::bind(&WiFiManager::handleWifiSave, this));
+  server->on((String)FPSTR(R_info), std::bind(&WiFiManager::handleInfo, this));
+  server->on((String)FPSTR(R_param), std::bind(&WiFiManager::handleParam, this));
+  server->on((String)FPSTR(R_paramsave), std::bind(&WiFiManager::handleParamSave, this));
+  server->on((String)FPSTR(R_restart), std::bind(&WiFiManager::handleReset, this));
+  server->on((String)FPSTR(R_exit), std::bind(&WiFiManager::handleExit, this));
+  server->on((String)FPSTR(R_close), std::bind(&WiFiManager::stopCaptivePortal, this));
+  server->on((String)FPSTR(R_erase), std::bind(&WiFiManager::handleErase, this));
+  server->on((String)FPSTR(R_status), std::bind(&WiFiManager::handleWiFiStatus, this));
   //server->on("/fwlink", std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
   server->onNotFound (std::bind(&WiFiManager::handleNotFound, this));
   
@@ -499,6 +502,9 @@ uint8_t WiFiManager::processConfigPortal(){
         DEBUG_WM(F("Connect to new AP [SUCCESS]"));
         DEBUG_WM(F("Got IP Address:"));
         DEBUG_WM(WiFi.localIP());
+        if ( _savecallback != NULL) {
+          _savecallback();
+        }        
         stopConfigPortal();
         return WL_CONNECTED; // success
       }
@@ -588,7 +594,7 @@ uint8_t WiFiManager::connectWifi(String ssid, String pass) {
   } else {
     // connect using saved ssid if there is one
     if (WiFi_hasAutoConnect()) {
-      DEBUG_WM(F("Connecting to saved AP"));
+      DEBUG_WM(F("Connecting to saved AP:"),WiFi_SSID());
   	  WiFi_enableSTA(true,storeSTAmode);
       WiFi.begin();
     } else {
@@ -1523,9 +1529,10 @@ void WiFiManager::reportStatus(String &page){
  */
 bool WiFiManager::disconnect(){
   if(WiFi.status() != WL_CONNECTED){
-    DEBUG_WM("Disconnect: Not connected");
+    DEBUG_WM("Disconnecting: Not connected");
     return false;
   }  
+  DEBUG_WM("Disconnecting");
   return WiFi_Disconnect();
 }
 
@@ -1534,9 +1541,36 @@ bool WiFiManager::disconnect(){
  * @access public
  */
 void WiFiManager::reboot(){
+  DEBUG_WM("Restarting");
   ESP.restart();
 }
 
+/**
+ * reboot the device
+ * @access public
+ */
+bool WiFiManager::erase(){
+  return erase(false);
+}
+
+bool WiFiManager::erase(bool opt){
+  DEBUG_WM("Erasing");
+
+  #if defined(ESP32) && (defined(WM_ERASE_NVS) || defined(ESP_NVS_H))
+    // if opt true, do nvs erase
+    if(opt){
+      DEBUG_WM("Erasing NVS");
+      int err;
+      err=nvs_flash_init();
+      DEBUG_WM("nvs_flash_init: ",err ? (String)err : "Success");
+      err=nvs_flash_erase();
+      DEBUG_WM("nvs_flash_erase: ", err ? (String)err : "Success");
+      return err;
+    }  
+  #endif
+
+  return WiFi_eraseConfig();
+}
 
 /**
  * [resetSettings description]
