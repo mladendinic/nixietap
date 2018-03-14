@@ -1,33 +1,15 @@
 #include "Nixie.h"
 
-// Initialize the display. This function configures pinModes based on .h file.
-const uint16_t Nixie::pinmap[11] =
-{
-    0b0000010000, // 0
-    0b0000100000, // 1
-    0b0001000000, // 2
-    0b0010000000, // 3
-    0b0100000000, // 4
-    0b1000000000, // 5
-    0b0000000001, // 6
-    0b0000000010, // 7
-    0b0000000100, // 8
-    0b0000001000, // 9
-    0b0000000000  // digit off
-};
-
-const char *UserAgent = "NixieTap";
-// openssl s_client -connect maps.googleapis.com:443 | openssl x509 -fingerprint -noout
-const char *gMapsCrt = "‎‎67:7B:99:A4:E5:A7:AE:E4:F0:92:01:EF:F5:58:B8:0B:49:CF:53:D4";
-const char *gMapsKey = "KEY"; // You can get your key here: https://developers.google.com/maps/documentation/geolocation/get-api-key
-const char *gTimeZoneKey = "KEY"; // You can get your key here: https://developers.google.com/maps/documentation/timezone/get-api-key
-
 Nixie::Nixie() {
     begin();
 }
 
 void Nixie::begin()
 {
+    // Fire up the serial.
+    Serial.begin(115200);
+    // Turn off the Nixie tubes. If this is not called nixies might show some random stuff on startup.
+    write(11, 11, 11, 11, 0);
     // Set SPI chip select as output
     pinMode(SPI_CS, OUTPUT);
     // Configure the ESP to receive interrupts from a RTC. 
@@ -37,6 +19,8 @@ void Nixie::begin()
     // fire up the RTC
     RTC.begin(RTC_SDA_PIN, RTC_SCL_PIN);
     RTC.setCharger(2);
+    setSyncProvider(RTC.get);   // Tells the Time.h library from where to sink the time.
+    setSyncInterval(60);        // Sync interval is in seconds.
 }
 /**
 * Change the state of the nixie Display
@@ -101,15 +85,17 @@ String Nixie::UrlEncode(const String url) {
   }
   return e;
 }
-// Get IPlocation from Freegeoip API server.
-String Nixie::getIPlocation() { // Using freegeoip.net to map public IP's location
+/*                                            *
+ * Get IP location from Freegeoip API server. *
+ *                                            */
+String Nixie::getLocFromFreegeo() { // Using freegeoip.net to map public IP's location
     HTTPClient http;
     String URL = "http://freegeoip.net/json/"; // no host or IP specified returns client's public IP info
     String payload;
     String loc;
     http.setUserAgent(UserAgent);
     if(!http.begin(URL)) {
-        Serial.println(F("getIPlocation: [HTTP] connect failed!"));
+        Serial.println(F("getLocFromFreegeo: [HTTP] connect failed!"));
     } else {
         int stat = http.GET();
         if(stat > 0) {
@@ -123,23 +109,25 @@ String Nixie::getIPlocation() { // Using freegeoip.net to map public IP's locati
                     String lat = root["latitude"];
                     String lng = root["longitude"];
                     loc = lat + "," + lng;
-                    Serial.println("getIPlocation: " + region + ", " + country);
+                    Serial.println("Your IP location is: " + region + ", " + country + ". With cordintates: " + loc);
                 } else {
-                    Serial.println(F("getIPlocation: JSON parse failed!"));
+                    Serial.println(F("getLocFromFreegeo: JSON parse failed!"));
                     Serial.println(payload);
                 }
             } else {
-                Serial.printf("getIPlocation: [HTTP] GET reply %d\r\n", stat);
+                Serial.printf("getLocFromFreegeo: [HTTP] GET reply %d\r\n", stat);
             }
         } else {
-            Serial.printf("getIPlocation: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            Serial.printf("getLocFromFreegeo: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
         }
     }
     http.end();
     return loc;
 }
-// Get IPlocation from Google API server.
-String Nixie::getLocation() { // using google maps API, return location for provided Postal Code
+/*                                         *
+ * Get IP location from Google API server. *
+ *                                         */
+String Nixie::getLocFromGoogle() { // using google maps API, return location for provided Postal Code
     HTTPClient http;
     String location = "";   // set to postal code to bypass geoIP lookup
     String URL = "https://maps.googleapis.com/maps/api/geocode/json?address=" + UrlEncode(location) + "&key=" + String(gMapsKey);
@@ -148,7 +136,7 @@ String Nixie::getLocation() { // using google maps API, return location for prov
     http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
     http.setUserAgent(UserAgent);
     if(!http.begin(URL, gMapsCrt)) {
-        Serial.println(F("getLocation: [HTTP] connect failed!"));
+        Serial.println(F("getLocFromGoogle: [HTTP] connect failed!"));
     } else {
         int stat = http.GET();
         if(stat > 0) {
@@ -163,24 +151,26 @@ String Nixie::getLocation() { // using google maps API, return location for prov
                     String lat = results_geometry["location"]["lat"];
                     String lng = results_geometry["location"]["lng"];
                     loc = lat + "," + lng;
-                    Serial.print(F("getLocation: "));
+                    Serial.print(F("Your IP location is: "));
                     Serial.println(address);
                 } else {
-                    Serial.println(F("getLocation: JSON parse failed!"));
+                    Serial.println(F("getLocFromGoogle: JSON parse failed!"));
                     Serial.println(payload);
                 }
             } else {
-                Serial.printf("getLocation: [HTTP] GET reply %d\r\n", stat);
+                Serial.printf("getLocFromGoogle: [HTTP] GET reply %d\r\n", stat);
             }
         } else {
-            Serial.printf("getLocation: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            Serial.printf("getLocFromGoogle: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
         }
     }
     http.end();
     return loc;
 }
-// Get Time Zone from Google API.
-int Nixie::getTimeZone(time_t now, String loc, uint8_t *dst) { // using google maps API, return TimeZone for provided timestamp
+/*                                *
+ * Get Time Zone from Google API. *
+ *                                */
+int Nixie::getTimeZoneOffset(time_t now, String loc, uint8_t *dst) { // using google maps API, return TimeZone for provided timestamp
     HTTPClient http;
     int tz = false;
     String URL = "https://maps.googleapis.com/maps/api/timezone/json?location="
@@ -189,7 +179,7 @@ int Nixie::getTimeZone(time_t now, String loc, uint8_t *dst) { // using google m
     http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
     http.setUserAgent(UserAgent);
     if(!http.begin(URL, gMapsCrt)) {
-        Serial.println(F("getTimeZone: [HTTP] connect failed!"));
+        Serial.println(F("getTimeZoneOffset: [HTTP] connect failed!"));
     } else {
         int stat = http.GET();
         if(stat > 0) {
@@ -201,16 +191,17 @@ int Nixie::getTimeZone(time_t now, String loc, uint8_t *dst) { // using google m
                     tz = int (root["rawOffset"]) / 60;  // Time Zone offset in minutes.
                     *dst = int (root["dstOffset"]) / 3600; // DST ih hours.
                     const char* tzname = root["timeZoneName"];
-                    Serial.printf("getTimeZone: %s (%d)\r\n", tzname, tz);
+                    Serial.printf("Your Time Zone name is: %s (Offset from UTC: %d)\r\n", tzname, tz);
+                    Serial.printf("Is DST(Daylight saving time) active at your location: %s", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
                 } else {
-                    Serial.println(F("getTimeZone: JSON parse failed!"));
+                    Serial.println(F("getTimeZoneOffset: JSON parse failed!"));
                     Serial.println(payload);
                 }
             } else {
-                Serial.printf("getTimeZone: [HTTP] GET reply %d\r\n", stat);
+                Serial.printf("getTimeZoneOffset: [HTTP] GET reply %d\r\n", stat);
             }
         } else {
-            Serial.printf("getTimeZone: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            Serial.printf("getTimeZoneOffset: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
         }
     }
     http.end();
