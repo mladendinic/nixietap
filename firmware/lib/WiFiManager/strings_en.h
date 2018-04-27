@@ -23,14 +23,14 @@ const char HTTP_HEAD_END[]         PROGMEM = "</head><body><div class='wrap'>";
 
 const char HTTP_ROOT_MAIN[]        PROGMEM = "<h1>{v}</h1><h3>WiFiManager</h3>";
 const char * const HTTP_PORTAL_MENU[] PROGMEM = {
-"<form action='/wifi'    method='GET'><button>Configure WiFi</button></form><br/>\n", // MENU_WIFI
-"<form action='/0wifi'   method='GET'><button>Configure WiFi (No Scan)</button></form><br/>\n", // MENU_WIFINOSCAN
-"<form action='/info'    method='GET'><button>Info</button></form><br/>\n", // MENU_INFO
-"<form action='/param'   method='GET'><button>Setup</button></form><br/>\n",//MENU_PARAM
-"<form action='/close'   method='GET'><button>Close</button></form><br/>\n", // MENU_CLOSE
-"<form action='/restart' method='GET'><button>Restart</button></form><br/>\n",// MENU_RESTART
-"<form action='/exit'    method='GET'><button>Exit</button></form>",  // MENU_EXIT
-"<form action='/erase'   method='GET'><button>Erase</button></form>", // MENU_ERASE
+"<form action='/wifi'    method='get'><button>Configure WiFi</button></form><br/>\n", // MENU_WIFI
+"<form action='/0wifi'   method='get'><button>Configure WiFi (No Scan)</button></form><br/>\n", // MENU_WIFINOSCAN
+"<form action='/info'    method='get'><button>Info</button></form><br/>\n", // MENU_INFO
+"<form action='/param'   method='get'><button>Setup</button></form><br/>\n",//MENU_PARAM
+"<form action='/close'   method='get'><button>Close</button></form><br/>\n", // MENU_CLOSE
+"<form action='/restart' method='get'><button>Restart</button></form><br/>\n",// MENU_RESTART
+"<form action='/exit'    method='get'><button>Exit</button></form><br/>\n",  // MENU_EXIT
+"<form action='/erase'   method='get'><button class='D'>Erase</button></form><br/>\n", // MENU_ERASE
 "<hr><br/>" // MENU_SEP
 };
 
@@ -42,13 +42,15 @@ const char HTTP_ITEM[]             PROGMEM = "<div><a href='#p' onclick='c(this)
 // const char HTTP_ITEM[]            PROGMEM = "<div><a href='#p' onclick='c(this)'>{v}</a> {R} {r}% {q} {e}</div>"; // test all tokens
 
 const char HTTP_FORM_START[]       PROGMEM = "<form method='POST' action='{v}'>";
-const char HTTP_FORM_WIFI[]        PROGMEM = "<label for='s'>SSID</label><input id='s' name='s' maxlength=32 placeholder='{v}'><br/><label for='p'>Password</label><input id='p' name='p' maxlength='64' type='password' placeholder=''>";
-const char HTTP_FORM_WIFI_END[]    PROGMEM = "<hr><br/>";
+const char HTTP_FORM_WIFI[]        PROGMEM = "<label for='s'>SSID</label><input id='s' name='s' maxlength='32' autocorrect='off' autocapitalize='none' placeholder='{v}'><br/><label for='p'>Password</label><input id='p' name='p' maxlength='64' type='password' placeholder=''>";
+const char HTTP_FORM_WIFI_END[]    PROGMEM = "";
+const char HTTP_FORM_STATIC_HEAD[] PROGMEM = "<hr><br/>";
 const char HTTP_FORM_END[]         PROGMEM = "<br/><br/><button type='submit'>Save</button></form>";
 const char HTTP_FORM_LABEL[]       PROGMEM = "<label for='{i}'>{t}</label>";
-const char HTTP_FORM_PARAM[]       PROGMEM = "<br/><input id='{i}' name='{n}' maxlength={l} placeholder='' value='{v}' {c}>";
+const char HTTP_FORM_PARAM_HEAD[]  PROGMEM = "<hr><br/>";
+const char HTTP_FORM_PARAM[]       PROGMEM = "<br/><input id='{i}' name='{n}' maxlength='{l}' placeholder='' value='{v}' {c}>";
 
-const char HTTP_SCAN_LINK[]        PROGMEM = "<br/><form action='/wifi?refresh=1' method='post'><button>Refresh</button></form>";
+const char HTTP_SCAN_LINK[]        PROGMEM = "<br/><form action='/wifi?refresh=1' method='POST'><button name='refresh' value='1'>Refresh</button></form>";
 const char HTTP_SAVED[]            PROGMEM = "<div class='msg'>Saving Credentials<br/>Trying to connect ESP to network.<br />If it fails reconnect to AP to try again</div>";
 const char HTTP_PARAMSAVED[]       PROGMEM = "<div class='msg'>Saved<br/></div>";
 const char HTTP_END[]              PROGMEM = "</div></body></html>";
@@ -95,13 +97,13 @@ const char HTTP_HELP[]             PROGMEM =
  "<td>Save WiFi configuration information and configure device. Needs variables supplied.</td></tr>"
  "<tr><td><a href='/param'>/param</a></td>"
  "<td>Parameter page</td></tr>"
- "<tr><td><a href='/info'>/i</a></td>"
+ "<tr><td><a href='/info'>/info</a></td>"
  "<td>Information page</td></tr>"
  "<tr><td><a href='/close'>/close</a></td>"
  "<td>Close the captiveportal popup,configportal will remain active</td></tr>"
  "<tr><td><a href='/exit'>/exit</a></td>"
  "<td>Exit Config Portal, configportal will close</td></tr>"
- "<tr><td><a href='/restart'>/r</a></td>"
+ "<tr><td><a href='/restart'>/restart</a></td>"
  "<td>Reboot the device</td></tr>"
  "<tr><td><a href='/erase'>/erase</a></td>"
  "<td>Erase WiFi configuration and reboot Device. Device will not reconnect to a network until new WiFi configuration data is entered.</td></tr>"
@@ -182,13 +184,16 @@ const char S_titleparamsaved[]    PROGMEM = "Setup Saved";
 const char S_titleexit[]          PROGMEM = "Exit";
 const char S_titlereset[]         PROGMEM = "Reset";
 const char S_titleerase[]         PROGMEM = "Erase";
+const char S_titleclose[]         PROGMEM = "Close";
 const char S_options[]            PROGMEM = "options";
 const char S_nonetworks[]         PROGMEM = "No networks found. Refresh to scan again.";
 const char S_staticip[]           PROGMEM = "Static IP";
 const char S_staticgw[]           PROGMEM = "Static Gateway";
+const char S_staticdns[]          PROGMEM = "Static DNS";
 const char S_subnet[]             PROGMEM = "Subnet";
 const char S_exiting[]            PROGMEM = "Exiting";
 const char S_resetting[]          PROGMEM = "Module will reset in a few seconds.";
+const char S_closing[]            PROGMEM = "You can close the page, portal will continue to run";
 const char S_error[]              PROGMEM = "An Error Occured";
 const char S_notfound[]           PROGMEM = "File Not Found\n\n";
 const char S_uri[]                PROGMEM = "URI: ";
@@ -204,6 +209,19 @@ const char D_HR[]                 PROGMEM = "--------------------";
 
 // -----------------------------------------------------------------------------------------------
 // DO NOT EDIT BELOW THIS LINE
+
+const uint8_t _nummenutokens = 9;
+const char * const _menutokens[9] PROGMEM = {
+    "wifi",
+    "wifinoscan",
+    "info",
+    "param",
+    "close",
+    "restart",
+    "exit",
+    "erase",
+    "sep"
+};
 
 const char R_root[]               PROGMEM = "/";
 const char R_wifi[]               PROGMEM = "/wifi";
@@ -223,6 +241,7 @@ const char R_status[]             PROGMEM = "/status";
 const char S_ip[]                 PROGMEM = "ip";
 const char S_gw[]                 PROGMEM = "gw";
 const char S_sn[]                 PROGMEM = "sn";
+const char S_dns[]                PROGMEM = "dns";
 
 // softap ssid default prefix
 #ifdef ESP8266
@@ -295,3 +314,5 @@ const char * const AUTH_MODE_NAMES[] PROGMEM
     "WPA_WPA2_PSK", // 8 ENC_TYPE_AUTO
 };
 #endif
+
+const char* const WIFI_MODES[] PROGMEM = { "NULL", "STA", "AP", "STA+AP" };

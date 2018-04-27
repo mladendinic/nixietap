@@ -1,7 +1,10 @@
 #include <FS.h>          // this needs to be first, or it all crashes and burns...
 #include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
 #include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
-// #include <spiffs.h>
+
+#ifdef ESP32
+  #include <SPIFFS.h>
+#endif
 
 //define your default values here, if there are different values in config.json, they are overwritten.
 char mqtt_server[40];
@@ -74,9 +77,6 @@ void setup() {
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
-
-  uint8_t menu[] = {wifiManager.MENU_WIFI,wifiManager.MENU_INFO,wifiManager.MENU_PARAM,wifiManager.MENU_CLOSE};
-  wifiManager.setMenu(menu);
   
   //set config save notify callback
   wifiManager.setSaveConfigCallback(saveConfigCallback);
