@@ -17,7 +17,7 @@ class NixieAPI {
 
 public:
     NixieAPI();
-    int getTimeZoneOffset(time_t now, String loc,  uint8_t *dst);
+    int getGoogleTimeZoneOffset(time_t now, String loc,  uint8_t *dst);
     String getLocFromFreegeo();
     String getLocFromGoogle();
     String UrlEncode(const String url);

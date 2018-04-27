@@ -4,20 +4,20 @@ NixieAPI::NixieAPI() {
 }
 
 String NixieAPI::UrlEncode(const String url) {
-  String e;
-  for (int i = 0; i < url.length(); i++) {
-    char c = url.charAt(i);
-    if (c == 0x20) {
-      e += "%20";            // "+" only valid for some uses
-    } else if (isalnum(c)) {
-      e += c;
-    } else {
-      e += "%";
-      if (c < 0x10) e += "0";
-      e += String(c, HEX);
+    String e;
+    for (int i = 0; i < url.length(); i++) {
+        char c = url.charAt(i);
+        if (c == 0x20) {
+            e += "%20";            // "+" only valid for some uses
+        } else if (isalnum(c)) {
+            e += c;
+        } else {
+            e += "%";
+            if (c < 0x10) e += "0";
+            e += String(c, HEX);
+        }
     }
-  }
-  return e;
+    return e;
 }
 /*                                            *
  * Get IP location from Freegeoip API server. *
@@ -104,7 +104,7 @@ String NixieAPI::getLocFromGoogle() { // using google maps API, return location 
 /*                                *
  * Get Time Zone from Google API. *
  *                                */
-int NixieAPI::getTimeZoneOffset(time_t now, String loc, uint8_t *dst) { // using google maps API, return TimeZone for provided timestamp
+int NixieAPI::getGoogleTimeZoneOffset(time_t now, String loc, uint8_t *dst) { // using google maps API, return TimeZone for provided timestamp
     HTTPClient http;
     int tz = false;
     String URL = "https://maps.googleapis.com/maps/api/timezone/json?location="

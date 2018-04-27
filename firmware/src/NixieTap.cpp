@@ -37,11 +37,16 @@ time_t prevTime = 0;        // The last time when the nixie tubes were sync. Thi
 
 WiFiManager wifiManager;
 // Initialization of parameters for manual configuration of time and date.
-WiFiManagerParameter yearWM("Year", "Enter Year: (example: 2016)", customYear, 4);
-WiFiManagerParameter monthWM("Month", "Enter Month: (1-January,..., 12-December)", customMonth, 2);
-WiFiManagerParameter dayWM("Day", "Enter Day of month: (From 1 to 31)", customDay, 2);
-WiFiManagerParameter hoursWM("Hours", "Enter curent time in hours(24h):", customHours, 2);
-WiFiManagerParameter minutesWM("Minutes", "Enter curent time in minutes:", customMinutes, 2);
+WiFiManagerParameter customText1("<h1><center>Manual time adjustment</center></h1>");
+WiFiManagerParameter customText2("<p><b>Please fill in all fields with the current date and time: </b></p>");
+WiFiManagerParameter yearWM("Year", "Year: ", customYear, 4);
+WiFiManagerParameter monthWM("Month", "Month: (1-January,..., 12-December)", customMonth, 2);
+WiFiManagerParameter dayWM("Day", "Day: (From 1 to 31)", customDay, 2);
+WiFiManagerParameter hoursWM("Hours", "Hours: (24h format)", customHours, 2);
+WiFiManagerParameter minutesWM("Minutes", "Minutes: ", customMinutes, 2);
+WiFiManagerParameter customText3("<h1><center>Configuration of API Key</center></h1>");
+WiFiManagerParameter customText4("<p><b><center>Work in progress...</center></b></p>");
+
 NTPSyncEvent_t ntpEvent;    // Last triggered event.
 
 void setup() {
@@ -51,11 +56,15 @@ void setup() {
     // Sets timeout(in seconds) until configuration portal gets turned off.
     wifiManager.setConfigPortalTimeout(600);
     // Adding parameters to Settings window in WiFiManager AP.
+    wifiManager.addParameter(&customText1);
+    wifiManager.addParameter(&customText2);
     wifiManager.addParameter(&yearWM);
     wifiManager.addParameter(&monthWM);
     wifiManager.addParameter(&dayWM);
     wifiManager.addParameter(&hoursWM);
     wifiManager.addParameter(&minutesWM);
+    wifiManager.addParameter(&customText3);
+    wifiManager.addParameter(&customText4);
 
     // Determining the look of the WiFiManager Web Server, which buttons will be visible on a main tab.
     std::vector<const char *> menu = {"wifi","param","info","sep","erase","exit"};
@@ -133,6 +142,7 @@ void checkForAPInvoke() {
                 Serial.println("NixieTap is connected to WiFi!");
                 wifiFirstConnected = true;
             }
+            enableSecondsDot();
         }
     } else if((currentMillis - previousMillis) > 1000) tuchState = 0;
 }
@@ -148,7 +158,7 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
         Serial.println("Got NTP time! UTC: " + NTP.getTimeStr());
         // Modifies UTC depending on the selected time zone. 
         // After that the time is sent to the RTC and Time library.
-        timeZone = nixieTapAPI.getTimeZoneOffset(now(), nixieTapAPI.getLocFromFreegeo(), &dst);
+        timeZone = nixieTapAPI.getGoogleTimeZoneOffset(now(), nixieTapAPI.getLocFromFreegeo(), &dst);
         NTP.setTimeZone((timeZone/60), (timeZone%60));
         NTP.setDayLight(dst);
         RTC.set(now());
@@ -181,9 +191,9 @@ void syncParameters() {
         }
     }
 }
-/*                                                                *
- *  Enables the center dot to change its state every second.      *
- *                                                                */
+/*                                                           *
+ *  Enables the center dot to change its state every second. *
+ *                                                           */
 void enableSecondsDot() {
     if(secDotDef == false) {
         detachInterrupt(RTC_IRQ_PIN);
@@ -251,3 +261,16 @@ void buttonPressed() {
     tuchState++;
     state++;
 }
+// <div class="dropdown">
+//         <div class="dropdown-selected"><span id="selected-value">Please select...</span></div>
+//         <span class="dropdown-select-btn" onclick="sd('selects');return false;">▾</span>
+//         <ul id="selects">
+//             <li onclick="c(&quot;{v}&quot;)">{v}<i>{i}<b>{r}%</b></i></li>
+//             <li onclick="c(&quot;{v}&quot;)">{v}<i><b>100%</b></i></li>
+//             <li onclick="c(&quot;Vila17&quot;)">Vila17<i><b>95%</b></i></li>
+//             <li onclick="c(&quot;LilRidingHoodz&quot;)">LilRidingHoodz<i><b>100%</b></i></li>
+//             <li onclick="c(&quot;Marcelica&quot;)">Marcelica<i><b>100%</b></i></li>
+//             <li onclick="c(&quot;PMica&quot;)">PMica<i><b>100%</b></i></li>
+//         </ul>
+//         <div style="clear:both;"></div>
+//     </div>
