@@ -261,16 +261,3 @@ void buttonPressed() {
     tuchState++;
     state++;
 }
-// <div class="dropdown">
-//         <div class="dropdown-selected"><span id="selected-value">Please select...</span></div>
-//         <span class="dropdown-select-btn" onclick="sd('selects');return false;">▾</span>
-//         <ul id="selects">
-//             <li onclick="c(&quot;{v}&quot;)">{v}<i>{i}<b>{r}%</b></i></li>
-//             <li onclick="c(&quot;{v}&quot;)">{v}<i><b>100%</b></i></li>
-//             <li onclick="c(&quot;Vila17&quot;)">Vila17<i><b>95%</b></i></li>
-//             <li onclick="c(&quot;LilRidingHoodz&quot;)">LilRidingHoodz<i><b>100%</b></i></li>
-//             <li onclick="c(&quot;Marcelica&quot;)">Marcelica<i><b>100%</b></i></li>
-//             <li onclick="c(&quot;PMica&quot;)">PMica<i><b>100%</b></i></li>
-//         </ul>
-//         <div style="clear:both;"></div>
-//     </div>
