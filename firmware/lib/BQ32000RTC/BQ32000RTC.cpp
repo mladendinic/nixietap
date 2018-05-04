@@ -94,7 +94,7 @@ bool BQ32000RTC::write(tmElements_t &tm) {
 void BQ32000RTC::setIRQ(uint8_t state) {
     /* Set IRQ square wave output state: 0=disabled, 1=1Hz, 2=512Hz.
      */
-    uint8_t reg, value;
+    uint8_t value;
     if (state) {
       // Setting the frequency is a bit complicated on the BQ32000:
         Wire.beginTransmission(BQ32000_ADDRESS);
@@ -170,7 +170,7 @@ uint8_t BQ32000RTC::readRegister(uint8_t address) {
     return Wire.read();
 }
 
-uint8_t BQ32000RTC::writeRegister(uint8_t address, uint8_t value) {
+void BQ32000RTC::writeRegister(uint8_t address, uint8_t value) {
     /* Write the given value to the register at the given address.
      */
     Wire.beginTransmission(BQ32000_ADDRESS);

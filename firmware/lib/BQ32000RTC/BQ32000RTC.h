@@ -40,7 +40,7 @@ public:
 
     // utility functions:
     static uint8_t readRegister(uint8_t address);
-    static uint8_t writeRegister(uint8_t address, uint8_t value);
+    static void writeRegister(uint8_t address, uint8_t value);
 
 private:
     static bool exists;

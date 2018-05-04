@@ -12,6 +12,10 @@
 #define SPI_CS 15
 #define BUTTON 4
 
+#ifndef DEBUG
+#define DEBUG
+#endif // DEBUG
+
 class Nixie {
     
     // Initialize the display. This function configures pinModes based on .h file.
@@ -34,8 +38,10 @@ public:
     Nixie();
     void begin();
     void write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots);
-    void write_time(time_t local, bool dot_state);
-    void write_date(time_t local, bool dot_state);
+    void writeNumber(int number, int movingSpeed);
+    void writeTime(time_t local, bool dot_state, bool timeFormat);
+    void writeDate(time_t local, bool dot_state);
+    uint8_t checkDate(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm);
 };
 
 #ifdef nixieTap

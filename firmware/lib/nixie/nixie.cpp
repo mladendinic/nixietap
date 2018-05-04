@@ -6,8 +6,10 @@ Nixie::Nixie() {
 
 void Nixie::begin()
 {
-    // Fire up the serial.
-    Serial.begin(115200);
+    // Fire up the serial if DEBUG is defined.
+    #ifdef DEBUG
+        Serial.begin(115200);
+    #endif // DEBUG
     // Turn off the Nixie tubes. If this is not called nixies might show some random stuff on startup.
     write(11, 11, 11, 11, 0);
     // Set SPI chip select as output
@@ -22,7 +24,7 @@ void Nixie::begin()
     setSyncProvider(RTC.get);   // Tells the Time.h library from where to sink the time.
     setSyncInterval(60);        // Sync interval is in seconds.
 }
-/**
+/*
 * Change the state of the nixie Display
 *
 * This function takes four input digits and one dot (encoded in uint8_t).
@@ -60,13 +62,47 @@ void Nixie::write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4
     digitalWrite(SPI_CS, HIGH);
     SPI.endTransaction();
 }
-void Nixie::write_time(time_t local, bool dot_state)
-{
-    Nixie::write(hour(local)/10, hour(local)%10, minute(local)/10, minute(local)%10, dot_state*0b1000);
+void Nixie::writeNumber(int number, int movingSpeed) {
+    if(number <= 9999) {
+        if(movingSpeed != 0) {
+        } else {
+            write(number/1000, (number%1000)/100, ((number%1000)%100)/10, ((number%1000)%100)%10, 0);
+        }
+    } else {
+
+    }
 }
-void Nixie::write_date(time_t local, bool dot_state)
+void Nixie::writeTime(time_t local, bool dot_state, bool timeFormat)
+{   
+    if(timeFormat) {
+        write(hour(local)/10, hour(local)%10, minute(local)/10, minute(local)%10, dot_state*0b1000);
+    } else {
+        write(hourFormat12(local)/10, hourFormat12(local)%10, minute(local)/10, minute(local)%10, dot_state*0b1000);
+    }
+}
+void Nixie::writeDate(time_t local, bool dot_state)
 {
-    Nixie::write(day(local)/10, day(local)%10, month(local)/10, month(local)%10, dot_state*0b1000);
+    write(day(local)/10, day(local)%10, month(local)/10, month(local)%10, dot_state*0b1000);
+}
+
+uint8_t Nixie::checkDate(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm) {
+    if(y >= 1971 && y <= 9999) { // Check year.
+        if(m >= 1 && m <= 12) {  // Check month.
+            // Check days.
+            if((d >= 1 && d <= 31) && (m == 1 || m == 3 || m == 5 || m == 7 || m == 8 || m == 10 || m == 12) && (h >= 0 && h <= 23) && ( mm >= 0 && mm <= 59))
+                return 1;
+            else if((d >= 1 && d <= 30) && (m == 4 || m == 6 || m == 9 || m == 11) && (h >= 0 && h <= 23) && ( mm >= 0 && mm <= 59))
+                return 1;
+            else if((d >= 1 && d <= 28) && (m == 2))
+                return 1;
+            else if(d == 29 && m == 2 && (y%400 == 0 ||(y%4 == 0 && y%100 != 0)) && (h >= 0 && h <= 23) && ( mm >= 0 && mm <= 59))
+                return 1;
+            else
+                return 0;
+        } else
+            return 0;
+    } else
+        return 0;
 }
 
 Nixie nixieTap = Nixie();
