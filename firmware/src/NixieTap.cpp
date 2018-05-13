@@ -6,15 +6,17 @@
 #include <TimeLib.h>
 #include <WiFiManager.h>
 #include <EEPROM.h>
+#include <Ticker.h>
 // This service locates the nearest NTP server from your location and attempts to synchronize the date (UTC time) from it.
 // Another option, if you live in the United States, is to use the NIST Internet Clock with the name of the server: "time.nist.gov".
 #define NTP_SERVER "pool.ntp.org"
+
 // When testing the code you should leave DEBUG defined if you want to see messages on the serial monitor.
 #define DEBUG
 
 void irq_1Hz_int();         // Interrupt function for changing the dot state every 1 second.
 void buttonPressed();       // Interrupt function when button is pressed.
-void enableSecondsDot();
+void enableSecDot();
 void enableScrollDots(uint8_t movingSpeed);
 void disableDots();
 void scrollDots();          // Interrupt function for scrolling dots.
@@ -28,10 +30,9 @@ bool resetDone = true, stopDef = false, secDotDef = false, scrollDotsDef = false
 bool wifiFirstConnected = false, syncEventTriggered = false; // True if a time event has been triggered.
 uint16_t yearInt = 0;
 uint8_t monthInt = 0, dayInt = 0, hoursInt = 0, minutesInt = 0, timeFormat = 1;
-uint8_t dotsSpeed = 100, timeZone = 0, minutesTimeZone = 0, dst = 0;
+uint8_t timeZone = 0, minutesTimeZone = 0, dst = 0;
 volatile uint8_t state = 0, tuchState = 0, dotPosition = 0b10;
-volatile uint16_t counter = 0;
-char costomTimeFormat[3] = "", customYear[6] = "", customMonth[4] = "", customDay[4] = "", customHours[4] = "", customMinutes[4] = "";
+char WMTimeFormat[3] = "", WMYear[6] = "", WMMonth[4] = "", WMDay[4] = "", WMHours[4] = "", WMMinutes[4] = "";
 char tzdbKey[50] = "", stackKey[50] = "", googleLKey[50] = "", googleTZkey[50] = "";
 unsigned long currentMillis = 0, previousMillis = 0;
 time_t prevTime = 0;        // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
@@ -40,12 +41,12 @@ WiFiManager wifiManager;
 // Initialization of parameters for manual configuration of time and date.
 WiFiManagerParameter text1("<h1><center>Manual time adjustment</center></h1>");
 WiFiManagerParameter text2("<p><b>Please fill in all fields with the current date and time: </b></p>");
-WiFiManagerParameter yearWM("Year", "Year: ", customYear, 4);
-WiFiManagerParameter monthWM("Month", "Month: (1-January,..., 12-December)", customMonth, 2);
-WiFiManagerParameter dayWM("Day", "Day: (From 1 to 31)", customDay, 2);
-WiFiManagerParameter hoursWM("Hours", "Hours: (24h format)", customHours, 2);
-WiFiManagerParameter minutesWM("Minutes", "Minutes: ", customMinutes, 2);
-WiFiManagerParameter formatWM("TimeFormat", "Time format(24h=1/12h=0): ", costomTimeFormat, 1);
+WiFiManagerParameter yearWM("Year", "Year: ", WMYear, 4);
+WiFiManagerParameter monthWM("Month", "Month: (1-January,..., 12-December)", WMMonth, 2);
+WiFiManagerParameter dayWM("Day", "Day: (From 1 to 31)", WMDay, 2);
+WiFiManagerParameter hoursWM("Hours", "Hours: (24h format)", WMHours, 2);
+WiFiManagerParameter minutesWM("Minutes", "Minutes: ", WMMinutes, 2);
+WiFiManagerParameter formatWM("TimeFormat", "Time format(24h=1/12h=0): ", WMTimeFormat, 1);
 WiFiManagerParameter text3("<h1><center>Configuration of API Key</center></h1>");
 WiFiManagerParameter text4("<p><b>Please fill in the field for which you have a key:</b></p>");
 WiFiManagerParameter timezonedbKey("Key_1", "TimezoneDB API Key: ", tzdbKey, 50);
@@ -55,15 +56,16 @@ WiFiManagerParameter googleTimeZoneKey("Key_4", "Google Time Zone API Key: ", go
 WiFiManagerParameter text5("<p><b>All API keys will be permanently saved until they are replaced with the new one.</b></p>");
 
 NTPSyncEvent_t ntpEvent;    // Last triggered event.
+Ticker movingDot; // Initializing software timer interrupt called movingDot.
 
 void setup() {
+
     // Touch button interrupt.
     attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, FALLING);
-    // Read all seved parameters from EEPROM.
     #ifdef DEBUG
         delay(5000);    // To have time to open a serial monitor.
     #endif // DEBUG
-    readKeys();
+    readKeys(); // Reed all stored parameters(API keys) from EEPROM.
     // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
     // Sets timeout(in seconds) until configuration portal gets turned off.
     wifiManager.setConfigPortalTimeout(800);
@@ -90,6 +92,7 @@ void setup() {
     // Fetches ssid and pass from eeprom and tries to connect,
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
     // and goes into a blocking loop awaiting configuration.
+    movingDot.attach(0.2, scrollDots); // This is the software timer interrupt which calls function scrollDots every 0,4s.
     if(!wifiManager.autoConnect("NixieTap", "Nixie123")) {
         #ifdef DEBUG
             Serial.println("Failed to connect or AP is manually closed!");
@@ -102,11 +105,12 @@ void setup() {
         #endif // DEBUG
         wifiFirstConnected = true;
     }
-    syncParameters();
+    movingDot.detach();
+    syncParameters();  // Collects the entered parameters in the WiFiManager AP and saves them.
 }
 
 void loop() {
-    if(wifiFirstConnected) {
+    if(wifiFirstConnected) { // Every time NixieTap connects to the new WiFi point, it only preforms this part of a code once.
         wifiFirstConnected = false;
         // Configuring NTP server.
         NTP.onNTPSyncEvent([](NTPSyncEvent_t event) {ntpEvent = event; syncEventTriggered = true;});
@@ -114,15 +118,15 @@ void loop() {
         NTP.setInterval(60, 3600);
         NTP.setNTPTimeout(5000);
         NTP.begin(NTP_SERVER, timeZone, false, minutesTimeZone);
-        enableSecondsDot();
+        enableSecDot();
     }
     if(syncEventTriggered) {
         // When the syncEvent is triggered depending on a set interval of synchronization this function will be executed.
         processSyncEvent(ntpEvent);
         syncEventTriggered = false;
     }
-    // This function allows you to manually start the access point on demand. (By tapping the button 5 times in a rapid succesion)
-    checkForAPInvoke();
+    checkForAPInvoke(); // This function allows you to manually start the access point on demand. (By tapping the button 5 times in a rapid succesion)
+    
     // When the button is pressed nixie tubes will change the displaying mode from time to date, and vice verse. 
     if(state >= 2) state = 0;
     switch(state) {
@@ -154,6 +158,7 @@ void checkForAPInvoke() {
             resetDone = true;
             nixieTap.write(10, 10, 10, 10, 0);
             disableDots(); // If dots are not disabled, precisely RTC_IRQ_PIN interrupt, ConfigPortal will chrach.
+            movingDot.attach(0.2, scrollDots);
             wifiManager.setConfigPortalTimeout(600);
             // This will run a new config portal if the conditions are met.
             if(!wifiManager.startConfigPortal("NixieTap", "Nixie123")) {
@@ -173,6 +178,7 @@ void checkForAPInvoke() {
                 #endif // DEBUG
                 wifiFirstConnected = true;
             }
+            movingDot.detach();
             enableSecondsDot();
         }
     } else if((currentMillis - previousMillis) > 1000) tuchState = 0;
@@ -248,11 +254,12 @@ void syncParameters() {
     char newKey[50];
     bool newTime = false;
     // Store updated parameters to local memory.
-    strcpy(customYear, yearWM.getValue());
-    strcpy(customMonth, monthWM.getValue());
-    strcpy(customDay, dayWM.getValue());
-    strcpy(customHours, hoursWM.getValue());
-    strcpy(customMinutes, minutesWM.getValue());
+    strcpy(WMYear, yearWM.getValue());
+    strcpy(WMMonth, monthWM.getValue());
+    strcpy(WMDay, dayWM.getValue());
+    strcpy(WMHours, hoursWM.getValue());
+    strcpy(WMMinutes, minutesWM.getValue());
+
     strcpy(newKey, timezonedbKey.getValue());
     #ifdef DEBUG
         Serial.println("Comparing entered keys with saved ones.");
@@ -300,32 +307,33 @@ void syncParameters() {
         EEPROM.put(EEaddress, googleTZkey);
     }
     EEaddress += sizeof(googleTZkey);
-    strcpy(costomTimeFormat, formatWM.getValue());
-    uint8_t newTimeFormat = atoi(costomTimeFormat);
-    if(costomTimeFormat[0] != '\0' && timeFormat != newTimeFormat && (newTimeFormat == 1 || newTimeFormat == 0)) {
+    strcpy(WMTimeFormat, formatWM.getValue());
+    uint8_t newTimeFormat = atoi(WMTimeFormat);
+    if(WMTimeFormat[0] != '\0' && timeFormat != newTimeFormat && (newTimeFormat == 1 || newTimeFormat == 0)) {
         timeFormat = newTimeFormat;
         EEPROM.put(EEaddress, timeFormat);
     }
     EEPROM.end();
+    
     // Convert parameters from char to int.
-    if(yearInt != atoi(customYear) && customYear[0] != '\0') {
-        yearInt = atoi(customYear);
+    if(yearInt != atoi(WMYear) && WMYear[0] != '\0') {
+        yearInt = atoi(WMYear);
         newTime = true;
     }
-    if(monthInt != atoi(customMonth) && customMonth[0] != '\0') {
-        monthInt = atoi(customMonth);
+    if(monthInt != atoi(WMMonth) && WMMonth[0] != '\0') {
+        monthInt = atoi(WMMonth);
         newTime = true;
     }
-    if(dayInt != atoi(customDay) && customDay[0] != '\0') {
-        dayInt = atoi(customDay);
+    if(dayInt != atoi(WMDay) && WMDay[0] != '\0') {
+        dayInt = atoi(WMDay);
         newTime = true;
     }
-    if(hoursInt != atoi(customHours) && customHours[0] != '\0') {
-        hoursInt = atoi(customHours);
+    if(hoursInt != atoi(WMHours) && WMHours[0] != '\0') {
+        hoursInt = atoi(WMHours);
         newTime = true;
     }
-    if(minutesInt != atoi(customMinutes) && customMinutes[0] != '\0') {
-        minutesInt = atoi(customMinutes);
+    if(minutesInt != atoi(WMMinutes) && WMMinutes[0] != '\0') {
+        minutesInt = atoi(WMMinutes);
         newTime = true;
     }
     // Check if the parameters are changed. If so, then enter in manual date and time configuration mode.
@@ -335,7 +343,7 @@ void syncParameters() {
             setTime(hoursInt, minutesInt, 0, dayInt, monthInt, yearInt);
             RTC.set(now());
             NTP.stop();     // NTP sync is disableded to avoid sync errors.
-            enableSecondsDot();
+            enableSecDot();
         } else {
             #ifdef DEBUG
                 Serial.println("Incorect date and time parameters! Please restart your device or tap 5 times on NixieTap case and try again.");
@@ -346,34 +354,12 @@ void syncParameters() {
 /*                                                           *
  *  Enables the center dot to change its state every second. *
  *                                                           */
-void enableSecondsDot() {
+void enableSecDot() {
     if(secDotDef == false) {
         detachInterrupt(RTC_IRQ_PIN);
         RTC.setIRQ(1);              // Configures the 512Hz interrupt from RTC.
         attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), irq_1Hz_int, FALLING);
         secDotDef = true;
-        stopDef = false;
-    }
-}
-/*                                                                             *
- *  Enables the dots to scroll acros nixie tube display.                       *
- *  @param[in] movingSpeed - how fast the dots change position on the display. *
- *                                                                             */
-void enableScrollDots(uint8_t movingSpeed) {
-    if(scrollDotsDef == false) {
-        if(movingSpeed > 0 && movingSpeed <= 512) {
-            dotsSpeed = movingSpeed;
-        } else {
-            #ifdef DEBUG
-                Serial.println("Invalid value! Scrolling speed of dots must be between 1 and 512. ");
-                Serial.println("Scrolling dots speed is reset to 100!");
-            #endif // DEBUG
-            dotsSpeed = 100;
-        }
-        detachInterrupt(RTC_IRQ_PIN);
-        RTC.setIRQ(2);              // Configures the 512Hz interrupt from RTC.
-        attachInterrupt(digitalPinToInterrupt(RTC_IRQ_PIN), scrollDots, FALLING);
-        scrollDotsDef = true;
         stopDef = false;
     }
 }
@@ -394,13 +380,9 @@ void disableDots() {
  * An interrupt function that changes the state and position of the dots on the display. *
  *                                                                                       */
 void scrollDots() {
-    counter++;
-    if(counter >= dotsSpeed) {
-        if(dotPosition == 0b100000) dotPosition = 0b10;
-        nixieTap.write(11, 11, 11, 11, dotPosition);
-        dotPosition = dotPosition << 1;
-        counter = 0;
-    }
+    if(dotPosition == 0b100000) dotPosition = 0b10;
+    nixieTap.write(11, 11, 11, 11, dotPosition);
+    dotPosition = dotPosition << 1;
 }
 /*                                                                  *
  * An interrupt function for changing the dot state every 1 second. *

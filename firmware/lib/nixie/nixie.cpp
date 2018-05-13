@@ -24,20 +24,20 @@ void Nixie::begin()
     setSyncProvider(RTC.get);   // Tells the Time.h library from where to sink the time.
     setSyncInterval(60);        // Sync interval is in seconds.
 }
-/*
-* Change the state of the nixie Display
-*
-* This function takes four input digits and one dot (encoded in uint8_t).
-* Digits are updated via SPI, dots are updated via GPIO.
-* Digits are MSB to LSB (digit1 = H1), dots take binary values: H1 dot is 0b1000,
-* H0 dot is 0b100, etc.
-* @param digit1 H1 digit value, 0-9, 10 is off
-* @param digit2 H0 digit value, 0-9, 10 is off
-* @param digit3 M1 digit value, 0-9, 10 is off
-* @param digit4 M0 digit value, 0-9, 10 is off
-* @param dots dot values, encoded in binary;
-* (H1, H0, M1, M0) = (0b1000, 0b100, 0b10, 0b1)
-*/
+/*                                                                          *
+ *  Change the state of the nixie Display                                   *
+ *                                                                          *
+ *  This function takes four input digits and one dot (encoded in uint8_t). *
+ *  Digits are updated via SPI, dots are updated via GPIO.                  *
+ *  Digits are MSB to LSB (digit1 = H1), dots take binary values:           *
+ *  H1 dot is 0b1000, H0 dot is 0b100, etc.                                 *
+ *  @param digit1 H1 digit value, 0-9, 10 is off                            *
+ *  @param digit2 H0 digit value, 0-9, 10 is off                            *
+ *  @param digit3 M1 digit value, 0-9, 10 is off                            *
+ *  @param digit4 M0 digit value, 0-9, 10 is off                            *
+ *  @param dots dot values, encoded in binary;                              *
+ *  (H1, H0, M1, M0) = (0b1000, 0b100, 0b10, 0b1)                           *
+ *                                                                          */
 void Nixie::write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots)
 {
     uint8_t part1, part2, part3, part4, part5, part6;
