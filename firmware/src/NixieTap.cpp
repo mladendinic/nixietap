@@ -179,7 +179,7 @@ void checkForAPInvoke() {
                 wifiFirstConnected = true;
             }
             movingDot.detach();
-            enableSecondsDot();
+            enableSecDot();
         }
     } else if((currentMillis - previousMillis) > 1000) tuchState = 0;
 }
