@@ -33,12 +33,16 @@ class Nixie {
         0b0000001000, // 9
         0b0000000000  // digit off
     };
+    String number = "";
+    uint8_t numberArray[100];
+    int dotPos, numberSize, k = 0;
+    unsigned long currentMillis = 0, previousMillis = 0;
 
 public:
     Nixie();
     void begin();
     void write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots);
-    void writeNumber(int number, int movingSpeed);
+    void writeNumber(String newNumber, unsigned int movingSpeed);
     void writeTime(time_t local, bool dot_state, bool timeFormat);
     void writeDate(time_t local, bool dot_state);
     uint8_t checkDate(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm);
