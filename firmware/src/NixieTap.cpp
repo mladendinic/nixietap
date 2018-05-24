@@ -24,6 +24,7 @@ void checkForAPInvoke();    // Checks if the user tapped 5 times in a rapid succ
 void syncParameters();
 void readKeys();
 void processSyncEvent(NTPSyncEvent_t ntpEvent);
+void ethRefresh();
 
 volatile bool dot_state = LOW;
 bool resetDone = true, stopDef = false, secDotDef = false, scrollDotsDef = false;
@@ -36,6 +37,10 @@ char WMTimeFormat[3] = "", WMYear[6] = "", WMMonth[4] = "", WMDay[4] = "", WMHou
 char tzdbKey[50] = "", stackKey[50] = "", googleLKey[50] = "", googleTZkey[50] = "";
 unsigned long previousMillis = 0;
 time_t prevTime = 0;        // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
+time_t prevTime2 = 0;
+String ethPrice = "";
+String ethPriceRounded = "";
+uint8_t ethRefreshFlag = 0;
 
 WiFiManager wifiManager;
 // Initialization of parameters for manual configuration of time and date.
@@ -57,6 +62,7 @@ WiFiManagerParameter text5("<p><b>All API keys will be permanently saved until t
 
 NTPSyncEvent_t ntpEvent;    // Last triggered event.
 Ticker movingDot; // Initializing software timer interrupt called movingDot.
+Ticker ethPriceRefresh;
 
 void setup() {
 
@@ -93,6 +99,7 @@ void setup() {
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
     // and goes into a blocking loop awaiting configuration.
     movingDot.attach(0.2, scrollDots); // This is the software timer interrupt which calls function scrollDots every 0,4s.
+    ethPriceRefresh.attach(2, ethRefresh);
     if(!wifiManager.autoConnect("NixieTap", "Nixie123")) {
         #ifdef DEBUG
             Serial.println("Failed to connect or AP is manually closed!");
@@ -139,8 +146,12 @@ void loop() {
         case 1 : // Display date.
                 nixieTap.writeDate(now(), 1);
                 break;
-        case 2 : // Display radnom number with a set speed.
-                nixieTap.writeNumber("1234.5678", 100);
+        case 2:  // Ethereum price
+                if(ethRefreshFlag) {
+                    ethRefreshFlag = 0;
+                    ethPrice = nixieTapAPI.getEthPrice();
+                }
+                nixieTap.writeNumber(ethPrice, 500);
                 break;
         default:       
                 #ifdef DEBUG
@@ -398,4 +409,8 @@ void irq_1Hz_int() {
 void buttonPressed() {
     tuchState++;
     state++;
+}
+
+void ethRefresh() {
+    ethRefreshFlag = 1;
 }

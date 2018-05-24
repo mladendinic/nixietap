@@ -444,13 +444,59 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
     return tz;
 }
 /*                                                                  *
- *  Calls Google TimeZone API to get time zone parameters           *
- *  for your latitude and longitude location.                       *
- *  Free up to 2,500 requests per day.                              *
- *  $0.50 USD / 1,000 additional requests.                          *
- *  up to 100,000 daily, if billing is enabled.                     *
- *  https://developers.google.com/maps/documentation/timezone/start *
+ *  Calls Coinmarketcap API, to get ETH price                       *
+ *  Should be limited to 30 requests per minute.                    *
+ *  https://coinmarketcap.com/api/#endpoint_listings                *
  *                                                                  */
+String NixieAPI::getEthPrice() {
+    HTTPClient http;
+    String URL = "https://api.coinmarketcap.com/v2/ticker/1027/";
+    #ifdef DEBUG
+        Serial.println("Requesting URL: " + URL);
+    #endif // DEBUG
+    String payload, price;
+    http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
+    http.setUserAgent(UserAgent);
+    if(!http.begin(URL, googleTimeZoneCrt)) {
+        #ifdef DEBUG
+            Serial.println(F("CMC failed to connect"));
+        #endif // DEBUG
+    } else {
+        int stat = http.GET();
+        if(stat > 0) {
+            if(stat == HTTP_CODE_OK) {
+                payload = http.getString();
+                DynamicJsonBuffer jsonBuffer;
+                JsonObject& root = jsonBuffer.parseObject(payload);
+                if(root.success()) {
+                    price = root["data"]["quotes"]["USD"]["price"].as<String>();
+                    #ifdef DEBUG
+                        Serial.println("Rank: " + price);
+
+                    #endif // DEBUG
+                } else {
+                    #ifdef DEBUG
+                        Serial.println(F("CMC parse failed"));
+
+                        Serial.println(payload);
+                    #endif // DEBUG
+                }
+            } else {
+                #ifdef DEBUG
+                    Serial.printf("CMC: [HTTP] GET reply %d\r\n", stat);
+                #endif // DEBUG
+            }
+        } else {
+            #ifdef DEBUG
+            Serial.printf("CMC: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            #endif // DEBUG
+        }
+    }
+    http.end();
+
+    return price;
+}
+
 int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *dst) {
     HTTPClient http;
     int tz = 0;
