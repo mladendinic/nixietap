@@ -36,7 +36,7 @@ class Nixie {
     String number = "";
     uint8_t numberArray[100];
     int dotPos, numberSize, k = 0;
-    unsigned long currentMillis = 0, previousMillis = 0;
+    unsigned long previousMillis = 0;
 
 public:
     Nixie();

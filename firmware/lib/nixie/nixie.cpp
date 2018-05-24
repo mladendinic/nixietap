@@ -152,9 +152,8 @@ void Nixie::writeNumber(String newNumber, unsigned int movingSpeed) {
         #endif // DEBUG
     }
     if(k < (numberSize - 4)) { // Since we, in the function write(), display four digits at the same time, we have to make up for it by reducing nuber k.
-        currentMillis = millis();
-        if(currentMillis - previousMillis >= movingSpeed) { // Determining how fast the number will scroll.
-            previousMillis = currentMillis;
+        if(millis() - previousMillis >= movingSpeed) { // Determining how fast the number will scroll.
+            previousMillis = millis();
             #ifdef DEBUG
                 Serial.printf("\nNow writting this digits on Nixies: \n1. -> %d, 2. -> %d, 3. -> %d, 4. -> %d \n", numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3]);
             #endif // DEBUG

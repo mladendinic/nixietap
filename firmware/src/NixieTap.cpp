@@ -34,7 +34,7 @@ uint8_t timeZone = 0, minutesTimeZone = 0, dst = 0;
 volatile uint8_t state = 0, tuchState = 0, dotPosition = 0b10;
 char WMTimeFormat[3] = "", WMYear[6] = "", WMMonth[4] = "", WMDay[4] = "", WMHours[4] = "", WMMinutes[4] = "";
 char tzdbKey[50] = "", stackKey[50] = "", googleLKey[50] = "", googleTZkey[50] = "";
-unsigned long currentMillis = 0, previousMillis = 0;
+unsigned long previousMillis = 0;
 time_t prevTime = 0;        // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
 
 WiFiManager wifiManager;
@@ -61,7 +61,7 @@ Ticker movingDot; // Initializing software timer interrupt called movingDot.
 void setup() {
 
     // Touch button interrupt.
-    attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, FALLING);
+    attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, RISING);
     #ifdef DEBUG
         delay(5000);    // To have time to open a serial monitor.
     #endif // DEBUG
@@ -140,7 +140,7 @@ void loop() {
                 nixieTap.writeDate(now(), 1);
                 break;
         case 2 : // Display radnom number with a set speed.
-                nixieTap.writeNumber("1234.5678", 500);
+                nixieTap.writeNumber("1234.5678", 100);
                 break;
         default:       
                 #ifdef DEBUG
@@ -151,10 +151,9 @@ void loop() {
 }
 
 void checkForAPInvoke() {
-    currentMillis = millis();
     // By tapping the button 5 times in a time gap of a 900 ms. You can manually start the WiFi Manager and access its settings.
-    if(tuchState == 1) previousMillis = currentMillis;
-    if((tuchState >= 5) && ((currentMillis - previousMillis) <= 900)) {
+    if(tuchState == 1) previousMillis = millis();
+    if((tuchState >= 5) && ((millis() - previousMillis) <= 900)) {
         resetDone = false;
         tuchState = 0;
         if(!resetDone) {
@@ -184,7 +183,7 @@ void checkForAPInvoke() {
             movingDot.detach();
             enableSecDot();
         }
-    } else if((currentMillis - previousMillis) > 1000) tuchState = 0;
+    } else if((millis() - previousMillis) > 1000) tuchState = 0;
 }
 
 void processSyncEvent(NTPSyncEvent_t ntpEvent) {
