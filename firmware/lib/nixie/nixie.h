@@ -13,7 +13,7 @@
 #define BUTTON 4
 
 #ifndef DEBUG
-#define DEBUG
+    #define DEBUG
 #endif // DEBUG
 
 class Nixie {
@@ -47,10 +47,6 @@ public:
     void writeDate(time_t local, bool dot_state);
     uint8_t checkDate(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm);
 };
-
-#ifdef nixieTap
-#undef nixieTap // workaround for Arduino Due, which defines "nixieTap"...
-#endif
 
 extern Nixie nixieTap;
 

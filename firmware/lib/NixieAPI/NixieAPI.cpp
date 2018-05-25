@@ -472,12 +472,10 @@ String NixieAPI::getEthPrice() {
                     price = root["data"]["quotes"]["USD"]["price"].as<String>();
                     #ifdef DEBUG
                         Serial.println("Rank: " + price);
-
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
                         Serial.println(F("CMC parse failed"));
-
                         Serial.println(payload);
                     #endif // DEBUG
                 }

@@ -31,16 +31,13 @@ bool resetDone = true, stopDef = false, secDotDef = false, scrollDotsDef = false
 bool wifiFirstConnected = false, syncEventTriggered = false; // True if a time event has been triggered.
 uint16_t yearInt = 0;
 uint8_t monthInt = 0, dayInt = 0, hoursInt = 0, minutesInt = 0, timeFormat = 1;
-uint8_t timeZone = 0, minutesTimeZone = 0, dst = 0;
+uint8_t timeZone = 0, minutesTimeZone = 0, dst = 0, ethRefreshFlag = 0;
 volatile uint8_t state = 0, tuchState = 0, dotPosition = 0b10;
 char WMTimeFormat[3] = "", WMYear[6] = "", WMMonth[4] = "", WMDay[4] = "", WMHours[4] = "", WMMinutes[4] = "";
 char tzdbKey[50] = "", stackKey[50] = "", googleLKey[50] = "", googleTZkey[50] = "";
 unsigned long previousMillis = 0;
 time_t prevTime = 0;        // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
-time_t prevTime2 = 0;
 String ethPrice = "";
-String ethPriceRounded = "";
-uint8_t ethRefreshFlag = 0;
 
 WiFiManager wifiManager;
 // Initialization of parameters for manual configuration of time and date.
@@ -61,11 +58,9 @@ WiFiManagerParameter googleTimeZoneKey("Key_4", "Google Time Zone API Key: ", go
 WiFiManagerParameter text5("<p><b>All API keys will be permanently saved until they are replaced with the new one.</b></p>");
 
 NTPSyncEvent_t ntpEvent;    // Last triggered event.
-Ticker movingDot; // Initializing software timer interrupt called movingDot.
-Ticker ethPriceRefresh;
+Ticker movingDot, ethPriceRefresh; // Initializing software timer interrupt called movingDot and ethPriceRefresh.
 
 void setup() {
-
     // Touch button interrupt.
     attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, RISING);
     #ifdef DEBUG
@@ -99,7 +94,7 @@ void setup() {
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
     // and goes into a blocking loop awaiting configuration.
     movingDot.attach(0.2, scrollDots); // This is the software timer interrupt which calls function scrollDots every 0,4s.
-    ethPriceRefresh.attach(2, ethRefresh);
+    ethPriceRefresh.attach(60, ethRefresh);
     if(!wifiManager.autoConnect("NixieTap", "Nixie123")) {
         #ifdef DEBUG
             Serial.println("Failed to connect or AP is manually closed!");
@@ -146,7 +141,7 @@ void loop() {
         case 1 : // Display date.
                 nixieTap.writeDate(now(), 1);
                 break;
-        case 2:  // Ethereum price
+        case 2 : // Ethereum price
                 if(ethRefreshFlag) {
                     ethRefreshFlag = 0;
                     ethPrice = nixieTapAPI.getEthPrice();
