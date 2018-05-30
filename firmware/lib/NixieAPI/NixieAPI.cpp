@@ -420,7 +420,7 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
                     tzname = root["id"].as<String>();
                     #ifdef DEBUG
                         Serial.println("Your Time Zone name is:" + tzname + " (Offset from UTC: " + String(tz) + ")");
-                        Serial.printf("Is DST(Daylight saving time) active at your location: %s", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
+                        Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
@@ -448,19 +448,20 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
  *  Should be limited to 30 requests per minute.                    *
  *  https://coinmarketcap.com/api/#endpoint_listings                *
  *                                                                  */
-String NixieAPI::getEthPrice() {
+String NixieAPI::getCryptoPrice(char* currencyID) {
     HTTPClient http;
-    String URL = "https://api.coinmarketcap.com/v2/ticker/1027/";
+    String URL = "https://api.coinmarketcap.com/v2/ticker/" + String(currencyID) + "/";
+    String payload, price, cryptoName;
     #ifdef DEBUG
-        Serial.println("Requesting URL: " + URL);
+        Serial.println("Requesting price of a selected currency from: " + URL);
     #endif // DEBUG
-    String payload, price;
     http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
     http.setUserAgent(UserAgent);
-    if(!http.begin(URL, googleTimeZoneCrt)) {
+    if(!http.begin(URL, cryptoPriceCrt)) {
         #ifdef DEBUG
-            Serial.println(F("CMC failed to connect"));
+            Serial.println(F("CMC failed to connect!"));
         #endif // DEBUG
+        return "0";
     } else {
         int stat = http.GET();
         if(stat > 0) {
@@ -470,24 +471,28 @@ String NixieAPI::getEthPrice() {
                 JsonObject& root = jsonBuffer.parseObject(payload);
                 if(root.success()) {
                     price = root["data"]["quotes"]["USD"]["price"].as<String>();
+                    cryptoName = root["data"]["name"].as<String>();
                     #ifdef DEBUG
-                        Serial.println("Rank: " + price);
+                        Serial.println("The current price of " + cryptoName + " is: " + price);
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
-                        Serial.println(F("CMC parse failed"));
+                        Serial.println(F("CMC parse failed!"));
                         Serial.println(payload);
                     #endif // DEBUG
+                    return "0";
                 }
             } else {
                 #ifdef DEBUG
                     Serial.printf("CMC: [HTTP] GET reply %d\r\n", stat);
                 #endif // DEBUG
+                return "0";
             }
         } else {
             #ifdef DEBUG
             Serial.printf("CMC: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
             #endif // DEBUG
+            return "0";
         }
     }
     http.end();

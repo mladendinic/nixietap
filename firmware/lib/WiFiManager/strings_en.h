@@ -21,7 +21,7 @@ const char HTTP_HEAD[]             PROGMEM = "<!DOCTYPE html><html lang='en'><he
 const char HTTP_SCRIPT[]           PROGMEM = "<script>function c(l){document.getElementById('s').value=l.innerText||l.textContent;document.getElementById('p').focus();}</script>";
 const char HTTP_HEAD_END[]         PROGMEM = "</head><body><div class='wrap'>";
 
-const char HTTP_ROOT_MAIN[]        PROGMEM = "<h1><center>{v}</center></h1><h3><center>WiFiManager</center></h3>";
+const char HTTP_ROOT_MAIN[]        PROGMEM = "<h1><center>{v}</center></h1>";
 const char * const HTTP_PORTAL_MENU[] PROGMEM = {
 "<form action='/wifi'    method='get'><button>Configure WiFi</button></form><br/>\n", // MENU_WIFI
 "<form action='/0wifi'   method='get'><button>Configure WiFi (No Scan)</button></form><br/>\n", // MENU_WIFINOSCAN

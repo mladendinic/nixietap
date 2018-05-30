@@ -149,13 +149,14 @@ void Nixie::writeNumber(String newNumber, unsigned int movingSpeed) {
             for(int i = 0; i < numberSize; i++) {
                 Serial.printf("%d: %d\t", i + 1, numberArray[i]);
             }
+            Serial.println();
         #endif // DEBUG
     }
     if(k < (numberSize - 4)) { // Since we, in the function write(), display four digits at the same time, we have to make up for it by reducing nuber k.
         if(millis() - previousMillis >= movingSpeed) { // Determining how fast the number will scroll.
             previousMillis = millis();
             #ifdef DEBUG
-                Serial.printf("\nNow writting this digits on Nixies: \n1. -> %d, 2. -> %d, 3. -> %d, 4. -> %d \n", numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3]);
+                // Serial.printf("\nNow writting this digits on Nixies: \n1. -> %d, 2. -> %d, 3. -> %d, 4. -> %d \n", numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3]);
             #endif // DEBUG
             if((dotPos - k >= 0)  && (dotPos - k <= 3)) { //If the number is decimal, the decimal point will be displayed when these factors are met.
                 write(numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3], 0b1 << (dotPos - k + 1));
