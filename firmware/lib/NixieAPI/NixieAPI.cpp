@@ -679,5 +679,49 @@ String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
 
     return temperature;
 }
+/*                                                                  *
+ *  Triggers IFTTT                                                  *
+ *  Example (using a valid key)                                     *
+ *  https://maker.ifttt.com/use/oAzpujskpAns1VbLhCLEj               *               
+ *                                                                  */
+String NixieAPI::triggerIFTTT() {
+    HTTPClient http;
+    String URL = "https://maker.ifttt.com/trigger/" + iftttEventName + "/with/key/" + iftttKey + "/";
+    String payload, price, cryptoName;
+    #ifdef DEBUG
+        Serial.println("Triggering event with URL:" + URL);
+    #endif // DEBUG
+    http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
+    http.setUserAgent(UserAgent);
+    if(!http.begin(URL, iftttCrt)) {
+        #ifdef DEBUG
+            Serial.println(F("IFTTT failed to connect!"));
+        #endif // DEBUG
+        return "0";
+    } else {
+        int stat = http.GET();
+        if(stat > 0) {
+            if(stat == HTTP_CODE_OK) {
+                payload = http.getString();
+                #ifdef DEBUG
+                    Serial.println(payload);
+                #endif // DEBUG
+                return "0";
+            } else {
+                #ifdef DEBUG
+                    Serial.printf("IFTTT: [HTTP] GET reply %d\r\n", stat);
+                #endif // DEBUG
+                return "0";
+            }
+        } else {
+            #ifdef DEBUG
+            Serial.printf("IFTTT: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            #endif // DEBUG
+            return "0";
+        }
+    }
+    http.end();
+    return "0";
+}
 
 NixieAPI nixieTapAPI = NixieAPI();

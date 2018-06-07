@@ -145,7 +145,10 @@ void loop() {
     checkForAPInvoke(); // This function allows you to manually start the access point on demand. (By tapping the button 5 times in a rapid succesion)
     
     // When the button is pressed nixie tubes will change the displaying mode from time to date, and vice verse. 
-    if(state >= 4) state = 0;
+    if(state >= 4) {
+        state = 0;
+        nixieTapAPI.triggerIFTTT();
+    }
     switch(state) {
         case 0 : // Display time.
                 if(now() != prevTime) { // Update the display only if time has changed.
