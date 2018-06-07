@@ -1,4 +1,4 @@
-#include "Nixie.h"
+#include "nixie.h"
 
 Nixie::Nixie() {
     begin();
