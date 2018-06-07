@@ -100,19 +100,29 @@ void Nixie::writeDate(time_t local, bool dot_state) {
     write(day(local)/10, day(local)%10, month(local)/10, month(local)%10, dot_state*0b1000);
     k = 0; // Reset the number position in the writeNumber function.
 }
-/*                                                                                                                                                                     *
- * With this function you can display random numbers(int or float) longer then four digits and also set the their scrolling speed(must be greater than zero).          *
- * Function accepts number in string form and then transfers it in to the int array with memorised position of a dot(if it exists).                                    *
- * Max size number, including integer and decimal part, is 100 digits. If you need to display longer number, you can easily modify number Array size in Nixie.h file.  *
- * Function does not accept negative numbers.                                                                                                                          *
- *                                                                                                                                                                     */
+/*                                                                                                                                   *
+ * With this function you can display random numbers(int or float, negative or positive) longer or shorter then four digits          *
+ * and also set their scrolling speed(if the speed is zero number is stationed).                                                     *
+ * Function accepts number in string form and then transfers it in to the int array with memorised position of a dot(if it exists).  *
+ * Max size number, including integer and decimal part, is 100 digits. If you need to display longer number,                         *
+ * you can easily modify number Array size in Nixie.h file.                                                                          *
+ *                                                                                                                                   */
 void Nixie::writeNumber(String newNumber, unsigned int movingSpeed) {
-    if(newNumber != number) {
-        number = newNumber;
+    if(newNumber != oldNumber) {
+        k = 0; // Reset the number position.
+        oldNumber = newNumber;
+        String number = newNumber;
         #ifdef DEBUG
             Serial.println("Number to display is: " + number);
         #endif // DEBUG
         number.trim(); // Get a version of the string with any leading and trailing whitespace removed.
+        if(number.startsWith("-")) {
+            numIsNeg = 1;
+            number.remove(0, 1); // Remove minus from string.
+            #ifdef DEBUG
+                Serial.println("Number is negative!");
+            #endif // DEBUG
+        } else numIsNeg = 0;
         numberSize = number.length() + 8; // For a simplicity of showing numbers on Nixies, we add four NULL(number 10 in this case) numbers before and after the real number.
         dotPos = number.indexOf('.');
         if(dotPos != -1) { // If the number is float type, we will replace the dot with the following number. So the whole size of the number will be reduced by one. Example: 1.23 -> 123
@@ -153,17 +163,30 @@ void Nixie::writeNumber(String newNumber, unsigned int movingSpeed) {
         #endif // DEBUG
     }
     if(k < (numberSize - 4)) { // Since we, in the function write(), display four digits at the same time, we have to make up for it by reducing nuber k.
-        if(millis() - previousMillis >= movingSpeed) { // Determining how fast the number will scroll.
-            previousMillis = millis();
-            #ifdef DEBUG
-                // Serial.printf("\nNow writting this digits on Nixies: \n1. -> %d, 2. -> %d, 3. -> %d, 4. -> %d \n", numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3]);
-            #endif // DEBUG
-            if((dotPos - k >= 0)  && (dotPos - k <= 3)) { //If the number is decimal, the decimal point will be displayed when these factors are met.
-                write(numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3], 0b1 << (dotPos - k + 1));
-            } else {
-                write(numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3], 0);
+        if(movingSpeed > 0) {
+            if(millis() - previousMillis >= movingSpeed) { // Determining how fast the number will scroll.
+                previousMillis = millis();
+                #ifdef DEBUG
+                    // Serial.printf("\nNow writting this digits on Nixies: \n1. -> %d, 2. -> %d, 3. -> %d, 4. -> %d \n", numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3]);
+                #endif // DEBUG
+                if((dotPos - k >= 0)  && (dotPos - k <= 3)) { //If the number is decimal, the decimal point will be displayed when these factors are met.
+                    write(numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3], (0b1 << (dotPos - k + 1)) | (((0b1 & numIsNeg) * ((k + 4 > 4 )&&(k + 4 < 9))) << (5 - k)));
+                } else {
+                    write(numberArray[k], numberArray[k + 1], numberArray[k + 2], numberArray[k + 3], 0 | (((0b1 & numIsNeg) * ((k + 4 > 4 )&&(k + 4 < 9))) << (5 - k)));
+                }
+                k++;
             }
-            k++;
+        } else if(movingSpeed == 0) {
+            if(numberSize > 12) {
+                #ifdef DEBUG
+                    Serial.println("Number is longer than 4 digits! It can not be completely displayed on the nixie screen.");
+                #endif // DEBUG
+            } else
+                write(numberArray[4], numberArray[5], numberArray[6], numberArray[7], (0b1 << (dotPos - 3)) | (0b10 * numIsNeg));
+        } else {
+            #ifdef DEBUG
+                Serial.println("Wrong value of movingSpeed. Speed of movement is not recognized.");
+            #endif // DEBUG
         }
     }
     if(k >= (numberSize - 4)) k = 0;

@@ -33,8 +33,8 @@ class Nixie {
         0b0000001000, // 9
         0b0000000000  // digit off
     };
-    String number = "";
-    uint8_t numberArray[100];
+    String oldNumber = "";
+    uint8_t numberArray[100], numIsNeg;
     int dotPos, numberSize, k = 0;
     unsigned long previousMillis = 0;
 

@@ -28,6 +28,12 @@ void NixieAPI::applyKey(String key, uint8_t selectAPI) {
                     Serial.println("applyKey successful, Google timezone key is:  " + googleTimeZoneKey);
                 #endif // DEBUG
                 break;
+        case 4 : 
+                openWeaterMapKey = key;
+                #ifdef DEBUG
+                    Serial.println("applyKey successful, PpenWeaterMap key is:  " + openWeaterMapKey);
+                #endif // DEBUG
+                break;
         default: 
                 Serial.println("Unknown value of selectAPI!");
                 break;
@@ -179,7 +185,7 @@ String NixieAPI::getPublicIP() {
  *                                                    */
 String NixieAPI::getLocFromIpstack(String publicIP) {
     HTTPClient http;
-    String payload = "", location = "";
+    String payload = "";
     if(publicIP == "") {
         publicIP = "check";
     }
@@ -241,7 +247,7 @@ String NixieAPI::getLocFromIpstack(String publicIP) {
  *                                                                     */
 String NixieAPI::getLocFromGoogle() {
     WiFiClientSecure client;
-    String location = "", lat = "", lng = "", accuracy = "";
+    String lat = "", lng = "", accuracy = "";
     String headers = "", hull = "", response = "";
     bool finishedHeaders = false, currentLineIsBlank = false, gotResponse = false;
     const char* googleLocApiHost = "www.googleapis.com";
@@ -335,7 +341,7 @@ String NixieAPI::getLocFromGoogle() {
  *                                                     */
 String NixieAPI::getLocFromIpapi(String publicIP) {
     HTTPClient http;
-    String payload = "", location = "";
+    String payload = "";
     String URL = "http://ip-api.com/json/" + publicIP;
     http.setUserAgent(UserAgent);
     if(!http.begin(URL)) {
@@ -442,62 +448,6 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
     http.end();
 
     return tz;
-}
-/*                                                                  *
- *  Calls Coinmarketcap API, to get ETH price                       *
- *  Should be limited to 30 requests per minute.                    *
- *  https://coinmarketcap.com/api/#endpoint_listings                *
- *                                                                  */
-String NixieAPI::getCryptoPrice(char* currencyID) {
-    HTTPClient http;
-    String URL = "https://api.coinmarketcap.com/v2/ticker/" + String(currencyID) + "/";
-    String payload, price, cryptoName;
-    #ifdef DEBUG
-        Serial.println("Requesting price of a selected currency from: " + URL);
-    #endif // DEBUG
-    http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
-    http.setUserAgent(UserAgent);
-    if(!http.begin(URL, cryptoPriceCrt)) {
-        #ifdef DEBUG
-            Serial.println(F("CMC failed to connect!"));
-        #endif // DEBUG
-        return "0";
-    } else {
-        int stat = http.GET();
-        if(stat > 0) {
-            if(stat == HTTP_CODE_OK) {
-                payload = http.getString();
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& root = jsonBuffer.parseObject(payload);
-                if(root.success()) {
-                    price = root["data"]["quotes"]["USD"]["price"].as<String>();
-                    cryptoName = root["data"]["name"].as<String>();
-                    #ifdef DEBUG
-                        Serial.println("The current price of " + cryptoName + " is: " + price);
-                    #endif // DEBUG
-                } else {
-                    #ifdef DEBUG
-                        Serial.println(F("CMC parse failed!"));
-                        Serial.println(payload);
-                    #endif // DEBUG
-                    return "0";
-                }
-            } else {
-                #ifdef DEBUG
-                    Serial.printf("CMC: [HTTP] GET reply %d\r\n", stat);
-                #endif // DEBUG
-                return "0";
-            }
-        } else {
-            #ifdef DEBUG
-            Serial.printf("CMC: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
-            #endif // DEBUG
-            return "0";
-        }
-    }
-    http.end();
-
-    return price;
 }
 
 int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *dst) {
@@ -615,6 +565,119 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
     http.end();
 
     return tz;
+}
+/*                                                                  *
+ *  Calls Coinmarketcap API, to get crypto price                    *
+ *  Should be limited to 30 requests per minute.                    *
+ *  https://coinmarketcap.com/api/#endpoint_listings                *
+ *                                                                  */
+String NixieAPI::getCryptoPrice(char* currencyID) {
+    HTTPClient http;
+    String URL = "https://api.coinmarketcap.com/v2/ticker/" + String(currencyID) + "/";
+    String payload, price, cryptoName;
+    #ifdef DEBUG
+        Serial.println("Requesting price of a selected currency from: " + URL);
+    #endif // DEBUG
+    http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
+    http.setUserAgent(UserAgent);
+    if(!http.begin(URL, cryptoPriceCrt)) {
+        #ifdef DEBUG
+            Serial.println(F("CMC failed to connect!"));
+        #endif // DEBUG
+        return "0";
+    } else {
+        int stat = http.GET();
+        if(stat > 0) {
+            if(stat == HTTP_CODE_OK) {
+                payload = http.getString();
+                DynamicJsonBuffer jsonBuffer;
+                JsonObject& root = jsonBuffer.parseObject(payload);
+                if(root.success()) {
+                    price = root["data"]["quotes"]["USD"]["price"].as<String>();
+                    cryptoName = root["data"]["name"].as<String>();
+                    #ifdef DEBUG
+                        Serial.println("The current price of " + cryptoName + " is: " + price);
+                    #endif // DEBUG
+                } else {
+                    #ifdef DEBUG
+                        Serial.println(F("CMC parse failed!"));
+                        Serial.println(payload);
+                    #endif // DEBUG
+                    return "0";
+                }
+            } else {
+                #ifdef DEBUG
+                    Serial.printf("CMC: [HTTP] GET reply %d\r\n", stat);
+                #endif // DEBUG
+                return "0";
+            }
+        } else {
+            #ifdef DEBUG
+            Serial.printf("CMC: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            #endif // DEBUG
+            return "0";
+        }
+    }
+    http.end();
+
+    return price;
+}
+/*                                                                            *
+ *  Calls OpenWeatherMap API, to get the temperature for the given location.  *
+ *  Available for Free. To access the API you need to sign up for an API key. * 
+ *  Should be limited to 60 requests per minute.                              *
+ *  https://openweathermap.org/api                                            *
+ *                                                                            */
+String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
+    HTTPClient http;
+    String payload, temperature;
+    String formatType = (format == 1) ? "metric" : "imperial";
+    location.replace(",", "&lon="); // This API request this format of coordinates: &lat=45.0&lng=19.0
+    String URL = "http://api.openweathermap.org/data/2.5/weather?lat=" + location + "&units=" + formatType + "&APPID=" + openWeaterMapKey;
+    #ifdef DEBUG
+        Serial.println("Requesting temperature for my location from: " + URL);
+    #endif // DEBUG
+    http.setUserAgent(UserAgent);
+    if(!http.begin(URL)) {
+        #ifdef DEBUG
+            Serial.println(F("getTempAtMyLocation: Connection failed!"));
+        #endif // DEBUG
+    } else {
+        #ifdef DEBUG
+            Serial.println("Connected to api.openweathermap.org!");
+        #endif // DEBUG
+        int stat = http.GET();
+        if(stat > 0) {
+            if(stat == HTTP_CODE_OK) {
+                payload = http.getString();
+                DynamicJsonBuffer jsonBuffer;
+                JsonObject& root = jsonBuffer.parseObject(payload);
+                JsonObject& main = root["main"];
+                if(root.success()) {
+                    temperature = main["temp"].as<String>();
+                    #ifdef DEBUG
+                        Serial.println("Temperature at your location is: " + temperature);
+                    #endif // DEBUG
+                } else {
+                    #ifdef DEBUG
+                        Serial.println(F("getTempAtMyLocation: JSON parse failed!"));
+                        Serial.println(payload);
+                    #endif // DEBUG
+                }
+            } else {
+                #ifdef DEBUG
+                    Serial.printf("getTempAtMyLocation: [HTTP] GET reply %d\r\n", stat);
+                #endif // DEBUG
+            }
+        } else {
+            #ifdef DEBUG
+                Serial.printf("getTempAtMyLocation: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            #endif // DEBUG
+        }
+    }
+    http.end();
+
+    return temperature;
 }
 
 NixieAPI nixieTapAPI = NixieAPI();

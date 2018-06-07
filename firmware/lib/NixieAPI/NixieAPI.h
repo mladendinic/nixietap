@@ -20,10 +20,13 @@ class NixieAPI {
     String ipStackKey = ""; // You can get your key here: https://ipstack.com/
     String googleLocKey = ""; // You can get your key here: https://developers.google.com/maps/documentation/geolocation/get-api-key
     String googleTimeZoneKey = ""; // You can get your key here: https://developers.google.com/maps/documentation/timezone/get-api-key
+    String openWeaterMapKey = ""; // // You can get your key here: https://openweathermap.org/api
     String googleTimeZoneCrt = "3A 93 DD B0 E6 91 AE 99 56 D2 23 F3 21 55 2C 13 05 AC 82 B0"; // Https fingerprint certification. Details at: https://github.com/esp8266/Arduino/blob/master/doc/esp8266wifi/client-secure-examples.rst
     String cryptoPriceCrt = "EF 9D 44 BA 1A 91 4C 42 06 B1 6A 25 71 26 58 61 BA DA FA B9"; // Use web browser to view and copy, SHA1 fingerprint of the certificate
     
 public:
+    String location; // This allows us to save our location so that we can reuse it in the code, without the need to requesting it again from the server.
+
     NixieAPI();
     void applyKey(String key, uint8_t selectAPI);
     String getSurroundingWiFiJson();
@@ -34,7 +37,8 @@ public:
     String getLocFromGoogle();
     String getLocFromIpapi(String publicIP);
     String getCryptoPrice(char* currencyID);
-    
+    String getTempAtMyLocation(String location, uint8_t format);
+
     int getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *dst);
     int getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t *dst);    // This service must be paid. Which is the reason why I am not able test the code.
     int getTimeZoneOffsetFromTimezonedb(time_t now, String location, String ip, uint8_t *dst);

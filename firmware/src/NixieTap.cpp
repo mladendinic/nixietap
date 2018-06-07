@@ -25,19 +25,20 @@ void syncParameters();
 void readParameters();
 void processSyncEvent(NTPSyncEvent_t ntpEvent);
 void cryptoRefresh();
+void weatherRefresh();
 
 volatile bool dot_state = LOW;
 bool resetDone = true, stopDef = false, secDotDef = false;
 bool wifiFirstConnected = false, syncEventTriggered = false; // True if a time event has been triggered.
 uint16_t yearInt = 0;
-uint8_t monthInt = 0, dayInt = 0, hoursInt = 0, minutesInt = 0, timeFormat = 1;
-uint8_t timeZone = 0, minutesTimeZone = 0, dst = 0, cryptoRefreshFlag = 1, firstSyncEvent = 1;
-volatile uint8_t state = 0, tuchState = 0, dotPosition = 0b10;
-char WMTimeFormat[3] = "", WMYear[6] = "", WMMonth[4] = "", WMDay[4] = "", WMHours[4] = "", WMMinutes[4] = "";
-char tzdbKey[50] = "", stackKey[50] = "", googleLKey[50] = "", googleTZkey[50] = "", currencyID[6] = "";
+uint8_t monthInt = 0, dayInt = 0, hoursInt = 0, minutesInt = 0, timeFormat = 1, weatherFormat = 1;
+uint8_t timeZone = 0, minutesTimeZone = 0, dst = 0, firstSyncEvent = 1;
+volatile uint8_t state = 0, tuchState = 0, dotPosition = 0b10, weatherRefreshFlag = 1, cryptoRefreshFlag = 1;
+char WMTimeFormat[3] = "", WMYear[6] = "", WMMonth[4] = "", WMDay[4] = "", WMHours[4] = "", WMMinutes[4] = "", WMweatherFormat[3] = "";
+char tzdbKey[50] = "", stackKey[50] = "", googleLKey[50] = "", googleTZkey[50] = "", currencyID[6] = "", weatherKey[50] = "";
 unsigned long previousMillis = 0;
 time_t prevTime = 0;        // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
-String cryptoCurrencyPrice = "";
+String cryptoCurrencyPrice = "", temperature = "";
 
 WiFiManager wifiManager;
 // Initialization of parameters for manual configuration of time and date.
@@ -55,14 +56,16 @@ WiFiManagerParameter timezonedbKey("Key_1", "TimezoneDB API Key: ", tzdbKey, 50)
 WiFiManagerParameter ipStackKey("Key_2", "IPstack API Key: ", stackKey, 50);
 WiFiManagerParameter googleLocKey("Key_3", "Google Geolocation API Key: ", googleLKey, 50);
 WiFiManagerParameter googleTimeZoneKey("Key_4", "Google Time Zone API Key: ", googleTZkey, 50);
-WiFiManagerParameter text5("<p><b>All API keys will be permanently saved until they are replaced with the new one.</b></p>");
+WiFiManagerParameter openWeatherMapKey("Key_5", "Open Weather Map API Key: ", weatherKey, 50);
+WiFiManagerParameter openWeatherMapFormat("Key_6", "Please select weather format(Metric=1/Imperial=0): ", WMweatherFormat, 2);
+WiFiManagerParameter text5("<p><b>All entered parameters will be permanently saved until they are replaced with the new one.</b></p>");
 WiFiManagerParameter text6("<h1><center>Configuration of crypto currency ID</center></h1>");
 WiFiManagerParameter cryptoID("cryptoID", "Enter cryptocurrency ID: (Example: Bitcoin: 1, Litecoin: 2, Ethereum: 1027, Ripple: 52): ", currencyID, 4);
 WiFiManagerParameter text7("<p>NixieTap uses the <b>CoinMarketCap</b> API service to get the price of the cryptocurrencies.</p>");
 WiFiManagerParameter text8("<p>For a complete list of cryptocurrency IDs visit: <b>https://api.coinmarketcap.com/v2/listings/</b></p>");
 
 NTPSyncEvent_t ntpEvent;    // Last triggered event.
-Ticker movingDot, priceRefresh; // Initializing software timer interrupt called movingDot and priceRefresh.
+Ticker movingDot, priceRefresh, temperatureRefresh; // Initializing software timer interrupt called movingDot and priceRefresh.
 
 void setup() {
     // Touch button interrupt.
@@ -90,6 +93,8 @@ void setup() {
     wifiManager.addParameter(&ipStackKey);
     wifiManager.addParameter(&googleLocKey);
     wifiManager.addParameter(&googleTimeZoneKey);
+    wifiManager.addParameter(&openWeatherMapKey);
+    wifiManager.addParameter(&openWeatherMapFormat);
     wifiManager.addParameter(&text5);
     wifiManager.addParameter(&text6);
     wifiManager.addParameter(&cryptoID);
@@ -101,6 +106,7 @@ void setup() {
 
     movingDot.attach(0.2, scrollDots); // This is the software timer interrupt which calls function scrollDots every 0,4s.
     priceRefresh.attach(300, cryptoRefresh); // This will refresh the cryptocurrency price every 5min.
+    temperatureRefresh.attach(3600, weatherRefresh);
     
     // Fetches ssid and pass from eeprom and tries to connect,
     // if it does not connect it starts an access point with the specified name "NixieTapAP"
@@ -139,7 +145,7 @@ void loop() {
     checkForAPInvoke(); // This function allows you to manually start the access point on demand. (By tapping the button 5 times in a rapid succesion)
     
     // When the button is pressed nixie tubes will change the displaying mode from time to date, and vice verse. 
-    if(state >= 3) state = 0;
+    if(state >= 4) state = 0;
     switch(state) {
         case 0 : // Display time.
                 if(now() != prevTime) { // Update the display only if time has changed.
@@ -157,6 +163,15 @@ void loop() {
                         cryptoCurrencyPrice = nixieTapAPI.getCryptoPrice(currencyID);
                     }
                     nixieTap.writeNumber(cryptoCurrencyPrice, 350);
+                } else state++;
+                break;
+        case 3 :  // Display temperature.
+                if(weatherKey[0] != '\0') {
+                    if(weatherRefreshFlag) {
+                        weatherRefreshFlag = 0;
+                        temperature = nixieTapAPI.getTempAtMyLocation(nixieTapAPI.location, 1);
+                    }
+                    nixieTap.writeNumber(temperature, 0);
                 } else state++;
                 break;
         default:       
@@ -208,14 +223,21 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
         #ifdef DEBUG
             Serial.print("Time Sync error: ");
         #endif // DEBUG
-        if(ntpEvent == noResponse)
+        if(ntpEvent == noResponse) {
             #ifdef DEBUG
                 Serial.println("NTP server not reachable.");
             #endif // DEBUG
-        else if(ntpEvent == invalidAddress)
+        } else if(ntpEvent == invalidAddress) {
             #ifdef DEBUG
                 Serial.println("Invalid NTP server address.");
             #endif // DEBUG
+        }
+        movingDot.detach(); // Stops scrolling dots.
+        nixieTap.write(1, 1, 1, 1, 0); // Display error code.
+        #ifdef DEBUG
+            Serial.println("Please restart NixieTap and try again!");
+            delay(2000);
+        #endif // DEBUG
     } else {
         #ifdef DEBUG
             Serial.println("Got NTP time! UTC: " + NTP.getTimeStr());
@@ -236,7 +258,7 @@ void readParameters() {
     #ifdef DEBUG
         Serial.println("Reading saved parameters from EEPROM.");
     #endif
-    EEPROM.begin(211);
+    EEPROM.begin(264);
     int EEaddress = 0;
     EEPROM.get(EEaddress, tzdbKey);
     if(tzdbKey[0] != '\0')
@@ -254,9 +276,15 @@ void readParameters() {
     if(googleTZkey[0] != '\0')
         nixieTapAPI.applyKey(googleTZkey, 3);
     EEaddress += sizeof(googleTZkey);
+    EEPROM.get(EEaddress, weatherKey);
+    if(weatherKey[0] != '\0')
+        nixieTapAPI.applyKey(weatherKey, 4);
+    EEaddress += sizeof(weatherKey);
     EEPROM.get(EEaddress, timeFormat);
     EEaddress += sizeof(timeFormat);
     EEPROM.get(EEaddress, currencyID);
+    EEaddress += sizeof(currencyID);
+    EEPROM.get(EEaddress, weatherFormat);
     #ifdef DEBUG
         Serial.println("Saved API Keys from EEPROM: ");
         if(tzdbKey[0] != '\0')
@@ -267,7 +295,9 @@ void readParameters() {
             Serial.println("  Google Location Key: " + String(googleLKey));
         if(googleTZkey[0] != '\0')
             Serial.println("  Google Time Zone Key: " + String(googleTZkey));
-        if(googleTZkey[0] != '\0')
+        if(weatherKey[0] != '\0')
+            Serial.println("  OneWeaterMap Key: " + String(weatherKey));
+        if(currencyID[0] != '\0')
             Serial.println("  Cryptocurrency ID: " + String(currencyID));
     #endif // DEBUG
     EEPROM.end();
@@ -276,7 +306,7 @@ void syncParameters() {
     #ifdef DEBUG
         Serial.println("Starting synchronization of parameters.");
     #endif // DEBUG
-    EEPROM.begin(211); // Number of bytes to allocate for parameters.
+    EEPROM.begin(264); // Number of bytes to allocate for parameters.
     int EEaddress = 0;
     char newKey[50];
     bool newTime = false;
@@ -318,6 +348,13 @@ void syncParameters() {
         EEPROM.put(EEaddress, googleTZkey);
     }
     EEaddress += sizeof(googleTZkey);
+    strcpy(newKey, openWeatherMapKey.getValue());
+    if(strcmp(newKey, weatherKey) && newKey[0] != '\0') {
+        strcpy(weatherKey, newKey);
+        nixieTapAPI.applyKey(weatherKey, 4);
+        EEPROM.put(EEaddress, weatherKey);
+    }
+    EEaddress += sizeof(weatherKey);
     strcpy(WMTimeFormat, formatWM.getValue());
     uint8_t newTimeFormat = atoi(WMTimeFormat);
     if(WMTimeFormat[0] != '\0' && timeFormat != newTimeFormat && (newTimeFormat == 1 || newTimeFormat == 0)) {
@@ -331,6 +368,13 @@ void syncParameters() {
     if(WMcurrencyID[0] != '\0' && currencyID != WMcurrencyID && newCurrencyID >= 1 && newCurrencyID <= 9999) {
         strcpy(currencyID, WMcurrencyID);
         EEPROM.put(EEaddress, currencyID);
+    }
+    EEaddress += sizeof(currencyID);
+    strcpy(WMweatherFormat, formatWM.getValue());
+    uint8_t newWeatherFormat = atoi(WMweatherFormat);
+    if(WMweatherFormat[0] != '\0' && weatherFormat != newWeatherFormat && (newWeatherFormat == 1 || newWeatherFormat == 0)) {
+        weatherFormat = newWeatherFormat;
+        EEPROM.put(EEaddress, weatherFormat);
     }
     EEPROM.end();
     
@@ -417,7 +461,9 @@ void buttonPressed() {
     tuchState++;
     state++;
 }
-
 void cryptoRefresh() {
     cryptoRefreshFlag = 1;
+}
+void weatherRefresh() {
+    weatherRefreshFlag = 1;
 }
