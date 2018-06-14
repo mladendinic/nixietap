@@ -348,6 +348,7 @@ String NixieAPI::getLocFromIpapi(String publicIP) {
         #ifdef DEBUG
             Serial.println(F("getLocFromIpapi: Connection failed!"));
         #endif // DEBUG
+        return "0";
     } else {
         #ifdef DEBUG
             Serial.println("Connected to ip-api.com!");
@@ -373,17 +374,20 @@ String NixieAPI::getLocFromIpapi(String publicIP) {
                     #ifdef DEBUG
                         Serial.println(F("getLocFromIpapi: JSON parse failed!"));
                         Serial.println(payload);
-                    #endif // DEBUG
+                    #endif // DEBUG 
+                    return "0";
                 }
             } else {
                 #ifdef DEBUG
                     Serial.printf("getLocFromIpapi: [HTTP] GET reply %d\r\n", stat);
                 #endif // DEBUG
+                return "0";
             }
         } else {
             #ifdef DEBUG
                 Serial.printf("getLocFromIpapi: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
             #endif // DEBUG
+            return "0";
         }
     }
     http.end();

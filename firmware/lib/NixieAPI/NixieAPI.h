@@ -32,12 +32,13 @@ public:
     String getSurroundingWiFiJson();
 
     String getPublicIP();
-
+    
+    String getCryptoPrice(char* currencyID);
+    String getTempAtMyLocation(String location, uint8_t format);
+    
     String getLocFromIpstack(String publicIP);
     String getLocFromGoogle();
     String getLocFromIpapi(String publicIP);
-    String getCryptoPrice(char* currencyID);
-    String getTempAtMyLocation(String location, uint8_t format);
 
     int getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *dst);
     int getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t *dst);    // This service must be paid. Which is the reason why I am not able test the code.

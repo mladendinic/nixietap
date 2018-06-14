@@ -30,9 +30,9 @@ void weatherRefresh();
 volatile bool dot_state = LOW;
 bool resetDone = true, stopDef = false, secDotDef = false;
 bool wifiFirstConnected = false, syncEventTriggered = false; // True if a time event has been triggered.
+int16_t timeZone = 0, minutesTimeZone = 0;
 uint16_t yearInt = 0;
-uint8_t monthInt = 0, dayInt = 0, hoursInt = 0, minutesInt = 0, timeFormat = 1, weatherFormat = 1;
-uint8_t timeZone = 0, minutesTimeZone = 0, dst = 0, firstSyncEvent = 1;
+uint8_t monthInt = 0, dayInt = 0, hoursInt = 0, minutesInt = 0, timeFormat = 1, weatherFormat = 1, dst = 0, firstSyncEvent = 1;
 volatile uint8_t state = 0, tuchState = 0, dotPosition = 0b10, weatherRefreshFlag = 1, cryptoRefreshFlag = 1;
 char WMTimeFormat[3] = "", WMYear[6] = "", WMMonth[4] = "", WMDay[4] = "", WMHours[4] = "", WMMinutes[4] = "", WMweatherFormat[3] = "";
 char tzdbKey[50] = "", stackKey[50] = "", googleLKey[50] = "", googleTZkey[50] = "", currencyID[6] = "", weatherKey[50] = "";
@@ -40,6 +40,8 @@ unsigned long previousMillis = 0;
 time_t prevTime = 0;        // The last time when the nixie tubes were sync. This prevents the change of the nixie tubes unless the time has changed.
 String cryptoCurrencyPrice = "", temperature = "";
 
+NTPSyncEvent_t ntpEvent;    // Last triggered event.
+Ticker movingDot, priceRefresh, temperatureRefresh; // Initializing software timer interrupt called movingDot and priceRefresh.
 WiFiManager wifiManager;
 // Initialization of parameters for manual configuration of time and date.
 WiFiManagerParameter text1("<h1><center>Manual time adjustment</center></h1>");
@@ -64,16 +66,13 @@ WiFiManagerParameter cryptoID("cryptoID", "Enter cryptocurrency ID: (Example: Bi
 WiFiManagerParameter text7("<p>NixieTap uses the <b>CoinMarketCap</b> API service to get the price of the cryptocurrencies.</p>");
 WiFiManagerParameter text8("<p>For a complete list of cryptocurrency IDs visit: <b>https://api.coinmarketcap.com/v2/listings/</b></p>");
 
-NTPSyncEvent_t ntpEvent;    // Last triggered event.
-Ticker movingDot, priceRefresh, temperatureRefresh; // Initializing software timer interrupt called movingDot and priceRefresh.
-
 void setup() {
     // Touch button interrupt.
     attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, RISING);
     #ifdef DEBUG
         delay(3000);    // To have time to open a serial monitor.
     #endif // DEBUG
-    readParameters(); // Reed all stored parameters(API keys) from EEPROM.
+    readParameters(); // Reed all stored parameters from EEPROM.
     
     // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
     // Sets timeout(in seconds) until configuration portal gets turned off.
@@ -130,10 +129,13 @@ void loop() {
     if(wifiFirstConnected) { // Every time NixieTap connects to the new WiFi point, it only preforms this part of a code once.
         wifiFirstConnected = false;
         // Configuring NTP server.
-        NTP.onNTPSyncEvent([](NTPSyncEvent_t event) {ntpEvent = event; syncEventTriggered = true;});
-        // While time is not first adjusted yet, synchronization will be attempted every 60 seconds. When first sync is done, UTC time will be sync every 24 hours.
-        NTP.setInterval(60, 3600);
-        NTP.setNTPTimeout(5000);
+        NTP.onNTPSyncEvent([](NTPSyncEvent_t event) {
+            ntpEvent = event; 
+            syncEventTriggered = true;
+        });
+        // While the time is not first adjusted yet, synchronization will be attempted every 15 seconds. When first sync is done, UTC time will be synced every hour.
+        NTP.setInterval(15, 3600);
+        NTP.setNTPTimeout(6000);
         NTP.begin(NTP_SERVER, timeZone, false, minutesTimeZone);
         enableSecDot();
     }
@@ -169,7 +171,9 @@ void loop() {
                 if(weatherKey[0] != '\0') {
                     if(weatherRefreshFlag) {
                         weatherRefreshFlag = 0;
-                        temperature = nixieTapAPI.getTempAtMyLocation(nixieTapAPI.location, 1);
+                        if(nixieTapAPI.location != "")
+                            temperature = nixieTapAPI.getTempAtMyLocation(nixieTapAPI.location, weatherFormat);
+                        else state++;
                     }
                     nixieTap.writeNumber(temperature, 0);
                 } else state++;
@@ -193,7 +197,7 @@ void checkForAPInvoke() {
             nixieTap.write(10, 10, 10, 10, 0);
             disableSecDot(); // If dots are not disabled, precisely RTC_IRQ_PIN interrupt, ConfigPortal will chrach.
             movingDot.attach(0.2, scrollDots);
-            wifiManager.setConfigPortalTimeout(600);
+            wifiManager.setConfigPortalTimeout(800);
             // This will run a new config portal if the conditions are met.
             if(!wifiManager.startConfigPortal("NixieTap", "Nixie123")) {
                 #ifdef DEBUG
@@ -235,18 +239,46 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
         movingDot.detach(); // Stops scrolling dots.
         nixieTap.write(1, 1, 1, 1, 0); // Display error code.
         #ifdef DEBUG
-            Serial.println("Please restart NixieTap and try again!");
-            delay(2000);
+            Serial.println("Synchronization will be attempted again after 60 seconds.");
+            Serial.println("If the time is not synced after 2 minutes, please restart Nixie Tap and try again!");
+            Serial.println("If restart does not help. There might be a problem with the NTP server or your WiFi connection. You can set the time manually.");
         #endif // DEBUG
+            delay(2000);
     } else {
         #ifdef DEBUG
             Serial.println("Got NTP time! UTC: " + NTP.getTimeStr());
         #endif // DEBUG
         // Modifies UTC depending on the selected time zone. 
         // After that the time is sent to the RTC and Time library.
+        if((googleLKey[0] != '\0') && (googleTZkey[0] != '\0')) {
         timeZone = nixieTapAPI.getTimeZoneOffsetFromGoogle(now(), nixieTapAPI.getLocFromGoogle(), &dst);
+        } else if(tzdbKey[0] != '\0') {
+            if(googleLKey[0] != '\0') {
+                timeZone = nixieTapAPI.getTimeZoneOffsetFromTimezonedb(now(), nixieTapAPI.getLocFromGoogle(), "", &dst);
+            } else if(stackKey[0] != '\0') {
+                timeZone = nixieTapAPI.getTimeZoneOffsetFromTimezonedb(now(), nixieTapAPI.getLocFromIpstack(nixieTapAPI.getPublicIP()), "", &dst);
+            } else {
+                String location = nixieTapAPI.getLocFromIpapi(nixieTapAPI.getPublicIP());
+                if(location != "0") {
+                    timeZone = nixieTapAPI.getTimeZoneOffsetFromTimezonedb(now(), location, "", &dst);
+                } else {
+                    timeZone = nixieTapAPI.getTimeZoneOffsetFromTimezonedb(now(), "", nixieTapAPI.getPublicIP(), &dst);
+                }
+            }
+        } else if(stackKey[0] != '\0') {
+            timeZone = nixieTapAPI.getTimeZoneOffsetFromIpstack(now(), nixieTapAPI.getPublicIP(), &dst);
+        } else {
+            timeZone = 0;
+            dst = 0;
+            #ifdef DEBUG
+                Serial.println("The time zone could not be detected. There are no keys for any of API service.");
+                Serial.println("Onely NTP time will be displayed.");
+            #endif // DEBUG
+        }
+        if(timeZone != 0 && dst != 0) {
         NTP.setTimeZone((timeZone/60), (timeZone%60));
         NTP.setDayLight(dst);
+        }
         RTC.set(now());
         if(firstSyncEvent) {
             movingDot.detach();                // Stops scrolling dots.
@@ -366,6 +398,7 @@ void syncParameters() {
     strcpy(WMcurrencyID, cryptoID.getValue());
     uint16_t newCurrencyID = atoi(WMcurrencyID);
     if(WMcurrencyID[0] != '\0' && currencyID != WMcurrencyID && newCurrencyID >= 1 && newCurrencyID <= 9999) {
+        cryptoRefreshFlag = 1;
         strcpy(currencyID, WMcurrencyID);
         EEPROM.put(EEaddress, currencyID);
     }
@@ -373,6 +406,7 @@ void syncParameters() {
     strcpy(WMweatherFormat, formatWM.getValue());
     uint8_t newWeatherFormat = atoi(WMweatherFormat);
     if(WMweatherFormat[0] != '\0' && weatherFormat != newWeatherFormat && (newWeatherFormat == 1 || newWeatherFormat == 0)) {
+        weatherRefreshFlag = 1;
         weatherFormat = newWeatherFormat;
         EEPROM.put(EEaddress, weatherFormat);
     }
