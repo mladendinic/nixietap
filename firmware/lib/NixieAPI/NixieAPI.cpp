@@ -42,7 +42,7 @@ void NixieAPI::applyKey(String key, uint8_t selectAPI) {
 String NixieAPI::MACtoString(uint8_t* macAddress) {
     char macStr[18] = { 0 };
     sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
-    return  String(macStr);
+    return String(macStr);
 }
 /*                                                          *
  *  Function to get a list of surrounding WiFi signals in   *
@@ -71,108 +71,111 @@ String NixieAPI::getSurroundingWiFiJson() {
     #endif // DEBUG
     return wifiArray;
 }
-/*                                                      *
- * Calls the ipify API to get a public IP address.      *
- * If that fails, it tries the same with the seeip API. * 
- * https://www.ipify.org/   https://seeip.org/          *
- *                                                      */
+/*                                                        *
+ *  Calls the ipify API to get a public IP address.       *
+ *  If that fails, it tries the same with the seeip API.  * 
+ *  https://www.ipify.org/   https://seeip.org/           *
+ *                                                        */
 String NixieAPI::getPublicIP() {
-    //Add a SSL client
-    WiFiClient client;
-    String headers = "", body = "", ip = "";
-    bool finishedHeaders = false, currentLineIsBlank = false, gotResponse = false, bodyStarts = false, bodyEnds = false;
-    long timeout;
-    if(client.connect("api.ipify.org", 80)) {
-        #ifdef DEBUG
-            Serial.println("Connected to ipify.org!");
-        #endif // DEBUG
-        client.print("GET /?format=json HTTP/1.1\r\nHost: api.ipify.org\r\n\r\n");
-        timeout = millis() + MAX_CONNECTION_TIMEOUT;
-        // checking the timeout
-        while(client.available() == 0) {
-            if(timeout - millis() < 0) {
-                #ifdef DEBUG
-                    Serial.println("Client Timeout!");
-                #endif // DEBUG
-                client.stop();
-                break;
-            }
-        }
-        if(client.available()) {
-            //marking we got a response
-            gotResponse = true;
-        }
-    } 
-    if(!gotResponse && client.connect("ip.seeip.org", 80)) {
-        #ifdef DEBUG
-            Serial.println("Failed to fetch public IP address from ipify.org! Now trying with seeip.org.");
-            Serial.println("Connected to seeip.org!");
-        #endif // DEBUG
-        client.print("GET /json HTTP/1.1\r\nHost: ip.seeip.org\r\n\r\n");
-        timeout = millis() + MAX_CONNECTION_TIMEOUT;
-        // checking the timeout
-        while(client.available() == 0) {
-            if(timeout - millis() < 0) {
-                #ifdef DEBUG
-                    Serial.println("Client Timeout!");
-                #endif // DEBUG
-                client.stop();
-                break;
-            }
-        }
-        if(client.available()) {
-            //marking we got a response
-            gotResponse = true;
-        }
-    } 
-    if(gotResponse) {
-        while(client.available()) {
-            char c = client.read();
-            if(finishedHeaders) {   // Separate json file from rest of the received response.
-                if(c == '{') {      // If this additional filtering is not performed. seeip.org json response will not be accepted by ArduinoJson lib.
-                    bodyStarts = true;
-                }
-                if(bodyStarts && !bodyEnds) {
-                    body = body + c;
-                }
-                if(c == '}') {
-                    bodyEnds = true;
-                }
-            } else {
-                if(currentLineIsBlank && c == '\n') {
-                    finishedHeaders = true;
-                }
-                else {
-                    headers = headers + c;
-                }
-            }
-            if(c == '\n') {
-                currentLineIsBlank = true;
-            } else if(c != '\r') {
-                currentLineIsBlank = false;
-            }
-        }
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& root = jsonBuffer.parseObject(body);
-        if(root.success()) {
-            ip = root["ip"].as<String>();
+    // If the IP does not exist or more than an hour has passed since the last request, ip will be re-requested from the API service.
+    if(ip == "" || ip == "0" || ((millis() - prevObtainedIpTime) >= 3600000)) {
+        prevObtainedIpTime = millis();
+        WiFiClient client;
+        String headers = "", body = "";
+        bool finishedHeaders = false, currentLineIsBlank = false, gotResponse = false, bodyStarts = false, bodyEnds = false;
+        long timeout;
+        if(client.connect("api.ipify.org", 80)) {
             #ifdef DEBUG
-                Serial.println("Your Public IP location is: " + ip);
+                Serial.println("Connected to ipify.org!");
             #endif // DEBUG
-            return ip;
+            client.print("GET /?format=json HTTP/1.1\r\nHost: api.ipify.org\r\n\r\n");
+            timeout = millis() + MAX_CONNECTION_TIMEOUT;
+            // checking the timeout
+            while(client.available() == 0) {
+                if(timeout - millis() < 0) {
+                    #ifdef DEBUG
+                        Serial.println("Client Timeout!");
+                    #endif // DEBUG
+                    client.stop();
+                    break;
+                }
+            }
+            if(client.available()) {
+                //marking we got a response
+                gotResponse = true;
+            }
+        } 
+        if(!gotResponse && client.connect("ip.seeip.org", 80)) {
+            #ifdef DEBUG
+                Serial.println("Failed to fetch public IP address from ipify.org! Now trying with seeip.org.");
+                Serial.println("Connected to seeip.org!");
+            #endif // DEBUG
+            client.print("GET /json HTTP/1.1\r\nHost: ip.seeip.org\r\n\r\n");
+            timeout = millis() + MAX_CONNECTION_TIMEOUT;
+            // checking the timeout
+            while(client.available() == 0) {
+                if(timeout - millis() < 0) {
+                    #ifdef DEBUG
+                        Serial.println("Client Timeout!");
+                    #endif // DEBUG
+                    client.stop();
+                    return "0";
+                }
+            }
+            if(client.available()) {
+                //marking we got a response
+                gotResponse = true;
+            }
+        } 
+        if(gotResponse) {
+            while(client.available()) {
+                char c = client.read();
+                if(finishedHeaders) {   // Separate json file from rest of the received response.
+                    if(c == '{') {      // If this additional filtering is not performed. seeip.org json response will not be accepted by ArduinoJson lib.
+                        bodyStarts = true;
+                    }
+                    if(bodyStarts && !bodyEnds) {
+                        body = body + c;
+                    }
+                    if(c == '}') {
+                        bodyEnds = true;
+                    }
+                } else {
+                    if(currentLineIsBlank && c == '\n') {
+                        finishedHeaders = true;
+                    }
+                    else {
+                        headers = headers + c;
+                    }
+                }
+                if(c == '\n') {
+                    currentLineIsBlank = true;
+                } else if(c != '\r') {
+                    currentLineIsBlank = false;
+                }
+            }
+            DynamicJsonBuffer jsonBuffer;
+            JsonObject& root = jsonBuffer.parseObject(body);
+            if(root.success()) {
+                ip = root["ip"].as<String>();
+                #ifdef DEBUG
+                    Serial.println("Your Public IP location is: " + ip);
+                #endif // DEBUG
+                return ip;
+            } else {
+                #ifdef DEBUG
+                    Serial.println("Failed to parse JSON!");
+                #endif // DEBUG
+                return "0";
+            }
         } else {
             #ifdef DEBUG
-                Serial.println("Failed to parse JSON!");
+                Serial.println("Failed to fetch public IP address from ipify.org!");
+                Serial.println("Failed to obtain a public IP address from any API!");
             #endif // DEBUG
+            return "0";
         }
-    } else {
-        #ifdef DEBUG
-            Serial.println("Failed to fetch public IP address from ipify.org!");
-            Serial.println("Failed to obtain a public IP address from any API!");
-        #endif // DEBUG
-        return ip;
     }
-
     return ip;
 }
 /*                                                    *
@@ -195,6 +198,7 @@ String NixieAPI::getLocFromIpstack(String publicIP) {
         #ifdef DEBUG
             Serial.println(F("getLocFromIpstack: Connection failed!"));
         #endif // DEBUG
+        return "0";
     } else {
         #ifdef DEBUG
             Serial.println("Connected to api.ipstack.com!");
@@ -221,16 +225,19 @@ String NixieAPI::getLocFromIpstack(String publicIP) {
                         Serial.println(F("getLocFromIpstack: JSON parse failed!"));
                         Serial.println(payload);
                     #endif // DEBUG
+                    return "0";
                 }
             } else {
                 #ifdef DEBUG
                     Serial.printf("getLocFromIpstack: [HTTP] GET reply %d\r\n", stat);
                 #endif // DEBUG
+                return "0";
             }
         } else {
             #ifdef DEBUG
                 Serial.printf("getLocFromIpstack: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
             #endif // DEBUG
+            return "0";
         }
     }
     http.end();
@@ -240,9 +247,7 @@ String NixieAPI::getLocFromIpstack(String publicIP) {
 /*                                                                     *
  *  Calls Google Location API to get current location using            *
  *  surrounding WiFi signals information.                              *
- *  Free up to 2,500 requests per day.                                 *
- *  $0.50 USD / 1,000 additional requests.                             *
- *  up to 100,000 daily, if billing is enabled.                        *
+ *  You get $200 free usage every month for Maps, Routes, or Places.   *
  *  https://developers.google.com/maps/documentation/geolocation/intro *
  *                                                                     */
 String NixieAPI::getLocFromGoogle() {
@@ -260,7 +265,7 @@ String NixieAPI::getLocFromGoogle() {
         #ifdef DEBUG
             Serial.println("getLocFromGoogle: HTTPS error!");
         #endif // DEBUG
-        return location;
+        return "0";
     }
     String body = "{\"wifiAccessPoints\":" + getSurroundingWiFiJson() + "}";
     #ifdef DEBUG
@@ -329,6 +334,7 @@ String NixieAPI::getLocFromGoogle() {
             #ifdef DEBUG
                 Serial.println("getLocFromGoogle: Failed to parse JSON!");
             #endif // DEBUG
+            return "0";
         }
     }
     return location;
@@ -394,6 +400,30 @@ String NixieAPI::getLocFromIpapi(String publicIP) {
 
     return location;
 }
+/*                                                                         *
+ *   This function combines all API services to get location parameters.   *
+ *   After it receives the location, it will no longer call API services   *
+ *   untill NixieTap is restarted.                                         *
+ *                                                                         */
+String NixieAPI::getLocation() {
+    if(googleLocKey != "" && (location == "" || location == "0")) {
+        getLocFromGoogle();
+    }
+    if(ipStackKey != "" && (location == "" || location == "0")) {
+        getLocFromIpstack(getPublicIP());
+    }
+    if(location == "" || location == "0") {
+        getLocFromIpapi(getPublicIP());
+    }
+    if(location == "" || location == "0") {
+        #ifdef DEBUG
+            Serial.println("getLocation: Failed to get any location from the API servers.");
+        #endif // DEBUG
+        return "0";
+    }
+    return location;
+}
+
 /*                                                            *
  *  Calls IPStack API to get time zone parameters according   *
  *  to your public IP location. The API can automatically     *
@@ -453,7 +483,11 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
 
     return tz;
 }
-
+/*                                                                     *
+ *  Calls Google Timezone API to get current timezone offset and dst.  *
+ *  You get $200 free usage every month for Maps, Routes, or Places.   *
+ *  https://developers.google.com/maps/documentation/timezone/start    *
+ *                                                                     */
 int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *dst) {
     HTTPClient http;
     int tz = 0;
@@ -570,6 +604,32 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
 
     return tz;
 }
+/*                                                                          *
+ *   This function combines all API services to get time zone parameters.   *
+ *                                                                          */
+int NixieAPI::getTimezone(time_t now, uint8_t *dst) {
+    int tz;
+    String loc = getLocation();
+    if(googleTimeZoneKey != "" && loc != "" && loc != "0") {
+        tz = getTimeZoneOffsetFromGoogle(now, getLocation(), dst);
+    } else if(timezonedbKey != "") {
+        if(loc != "" && loc != "0") {
+            tz = getTimeZoneOffsetFromTimezonedb(now, loc, "", dst);
+        } else {
+            tz = getTimeZoneOffsetFromTimezonedb(now, "", getPublicIP(), dst);
+        }
+    } else if(ipStackKey != "") {
+        tz = getTimeZoneOffsetFromIpstack(now, getPublicIP(), dst);
+    } else {
+        tz = 0;
+        *dst = 0;
+        #ifdef DEBUG
+            Serial.println("The time zone could not be detected. There are no keys for any of API service.");
+            Serial.println("Onely NTP time will be displayed.");
+        #endif // DEBUG
+    }
+    return tz;
+}
 /*                                                                  *
  *  Calls Coinmarketcap API, to get crypto price                    *
  *  Should be limited to 30 requests per minute.                    *
@@ -659,8 +719,12 @@ String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
                 JsonObject& main = root["main"];
                 if(root.success()) {
                     temperature = main["temp"].as<String>();
+                    int8_t dotPos = temperature.indexOf('.');
+                    if(dotPos != -1) {
+                        temperature.remove(dotPos);
+                    }
                     #ifdef DEBUG
-                        Serial.println("Temperature at your location is: " + temperature);
+                        Serial.println("Temperature at your location is " + temperature + "degrees.");
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
