@@ -2,9 +2,9 @@
 #include <nixie.h>
 #include <NixieAPI.h>
 #include <BQ32000RTC.h>
-#include <NtpClientLib.h>
+#include <NtpClientLib.h> // Development version is used: https://github.com/gmag11/NtpClient/tree/develop
 #include <TimeLib.h>
-#include <WiFiManager.h>
+#include <WiFiManager.h> // Development version is used: https://github.com/tzapu/WiFiManager/tree/development
 #include <EEPROM.h>
 #include <Ticker.h>
 // This service locates the nearest NTP server from your location and attempts to synchronize the date (UTC time) from it.
@@ -134,7 +134,7 @@ void loop() {
             syncEventTriggered = true;
         });
         // While the time is not first adjusted yet, synchronization will be attempted every 15 seconds. When first sync is done, UTC time will be synced every hour.
-        NTP.setInterval(15, 3600);
+        NTP.setInterval(20, 3600);
         NTP.setNTPTimeout(6000);
         NTP.begin(NTP_SERVER, timeZone, false, minutesTimeZone);
         enableSecDot();
@@ -171,9 +171,10 @@ void loop() {
                 if(weatherKey[0] != '\0') {
                     if(weatherRefreshFlag) {
                         weatherRefreshFlag = 0;
-                        if(nixieTapAPI.location != "")
-                            temperature = nixieTapAPI.getTempAtMyLocation(nixieTapAPI.location, weatherFormat);
-                        else state++;
+                        String loc = nixieTapAPI.getLocation();
+                        if(loc != "0") {
+                            temperature = nixieTapAPI.getTempAtMyLocation(loc, weatherFormat);
+                        } else state++;
                     }
                     nixieTap.writeNumber(temperature, 0);
                 } else state++;
@@ -239,7 +240,7 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
         movingDot.detach(); // Stops scrolling dots.
         nixieTap.write(1, 1, 1, 1, 0); // Display error code.
         #ifdef DEBUG
-            Serial.println("Synchronization will be attempted again after 60 seconds.");
+            Serial.println("Synchronization will be attempted again after 20 seconds.");
             Serial.println("If the time is not synced after 2 minutes, please restart Nixie Tap and try again!");
             Serial.println("If restart does not help. There might be a problem with the NTP server or your WiFi connection. You can set the time manually.");
         #endif // DEBUG
@@ -250,31 +251,7 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
         #endif // DEBUG
         // Modifies UTC depending on the selected time zone. 
         // After that the time is sent to the RTC and Time library.
-        if((googleLKey[0] != '\0') && (googleTZkey[0] != '\0')) {
-        timeZone = nixieTapAPI.getTimeZoneOffsetFromGoogle(now(), nixieTapAPI.getLocFromGoogle(), &dst);
-        } else if(tzdbKey[0] != '\0') {
-            if(googleLKey[0] != '\0') {
-                timeZone = nixieTapAPI.getTimeZoneOffsetFromTimezonedb(now(), nixieTapAPI.getLocFromGoogle(), "", &dst);
-            } else if(stackKey[0] != '\0') {
-                timeZone = nixieTapAPI.getTimeZoneOffsetFromTimezonedb(now(), nixieTapAPI.getLocFromIpstack(nixieTapAPI.getPublicIP()), "", &dst);
-            } else {
-                String location = nixieTapAPI.getLocFromIpapi(nixieTapAPI.getPublicIP());
-                if(location != "0") {
-                    timeZone = nixieTapAPI.getTimeZoneOffsetFromTimezonedb(now(), location, "", &dst);
-                } else {
-                    timeZone = nixieTapAPI.getTimeZoneOffsetFromTimezonedb(now(), "", nixieTapAPI.getPublicIP(), &dst);
-                }
-            }
-        } else if(stackKey[0] != '\0') {
-            timeZone = nixieTapAPI.getTimeZoneOffsetFromIpstack(now(), nixieTapAPI.getPublicIP(), &dst);
-        } else {
-            timeZone = 0;
-            dst = 0;
-            #ifdef DEBUG
-                Serial.println("The time zone could not be detected. There are no keys for any of API service.");
-                Serial.println("Onely NTP time will be displayed.");
-            #endif // DEBUG
-        }
+        timeZone = nixieTapAPI.getTimezone(now(), &dst);
         if(timeZone != 0 && dst != 0) {
         NTP.setTimeZone((timeZone/60), (timeZone%60));
         NTP.setDayLight(dst);

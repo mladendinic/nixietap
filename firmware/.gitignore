@@ -3,8 +3,8 @@
 .vscode
 .clang_complete
 .gcc-flags.json
-
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/*.db
 .vscode/.browse.c_cpp.db*
+platformio.ini
