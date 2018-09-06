@@ -258,9 +258,9 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
         // Modifies UTC depending on the selected time zone. 
         // After that the time is sent to the RTC and Time library.
         timeZone = nixieTapAPI.getTimezone(now(), &dst);
-        if(timeZone != 0 && dst != 0) {
-        NTP.setTimeZone((timeZone/60), (timeZone%60));
-        NTP.setDayLight(dst);
+        if(timeZone != 0 || dst != 0) {
+            NTP.setTimeZone((timeZone/60), (timeZone%60));
+            NTP.setDayLight(dst);
         }
         RTC.set(now());
         if(firstSyncEvent) {

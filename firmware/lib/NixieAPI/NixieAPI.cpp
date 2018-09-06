@@ -460,6 +460,7 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
     #endif // DEBUG
     http.setUserAgent(UserAgent);
     if(!http.begin(URL)) {
+        tz = 11;    // 11 is set as a time zone error
         #ifdef DEBUG
             Serial.println(F("getIpstackTimeZoneOffset: Connection failed!"));
         #endif // DEBUG
@@ -482,17 +483,20 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
                         Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
                     #endif // DEBUG
                 } else {
+                    tz = 11;
                     #ifdef DEBUG
                         Serial.println(F("getTimeZoneOffset: JSON parse failed!"));
                         Serial.println(payload);
                     #endif // DEBUG
                 }
             } else {
+                tz = 11;
                 #ifdef DEBUG
                     Serial.printf("getTimeZoneOffset: [HTTP] GET reply %d\r\n", stat);
                 #endif // DEBUG
             }
         } else {
+            tz = 11;
             #ifdef DEBUG
                 Serial.printf("getTimeZoneOffset: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
             #endif // DEBUG
@@ -519,6 +523,7 @@ int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *
     http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
     http.setUserAgent(UserAgent);
     if(!http.begin(URL, googleTimeZoneCrt)) {
+        tz = 11;    // 11 is set as a time zone error
         #ifdef DEBUG
             Serial.println(F("getTimeZoneOffset: [HTTP] connect failed!"));
         #endif // DEBUG
@@ -539,17 +544,20 @@ int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *
                         Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");     
                     #endif // DEBUG
                 } else {
+                    tz = 11;
                     #ifdef DEBUG
                         Serial.println(F("getTimeZoneOffset: JSON parse failed!"));
                         Serial.println(payload);
                     #endif // DEBUG
                 }
             } else {
+                tz = 11;
                 #ifdef DEBUG
                     Serial.printf("getTimeZoneOffset: [HTTP] GET reply %d\r\n", stat);
                 #endif // DEBUG
             }
         } else {
+            tz = 11;
             #ifdef DEBUG
             Serial.printf("getTimeZoneOffset: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
             #endif // DEBUG
@@ -582,6 +590,7 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
     #endif // DEBUG
     http.setUserAgent(UserAgent);
     if(!http.begin(URL)) {
+        tz = 11;    // 11 is set as a time zone error
         #ifdef DEBUG
             Serial.println(F("getTimeZoneOffsetFromTimezonedb: Connection failed!"));
         #endif // DEBUG
@@ -607,17 +616,20 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
                         Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
                     #endif // DEBUG
                 } else {
+                    tz = 11;
                     #ifdef DEBUG
                         Serial.println(F("getTimeZoneOffsetFromTimezonedb: JSON parse failed!"));
                         Serial.println(payload);
                     #endif // DEBUG
                 }
             } else {
+                tz = 11;
                 #ifdef DEBUG
                     Serial.printf("getTimeZoneOffsetFromTimezonedb: [HTTP] GET reply %d\r\n", stat);
                 #endif // DEBUG
             }
         } else {
+            tz = 11;
             #ifdef DEBUG
                 Serial.printf("getTimeZoneOffsetFromTimezonedb: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
             #endif // DEBUG
@@ -631,19 +643,22 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
  *   This function combines all API services to get time zone parameters.   *
  *                                                                          */
 int NixieAPI::getTimezone(time_t now, uint8_t *dst) {
-    int tz;
+    int tz = 11;
     String loc = getLocation();
-    if(googleTimeZoneKey != "" && (loc != "" || loc != "0")) {
-        tz = getTimeZoneOffsetFromGoogle(now, getLocation(), dst);
-    } else if(timezonedbKey != "") {
-        if(loc != "" || loc != "0") {
+    if(googleTimeZoneKey != "" && loc != "" && loc != "0") {
+        tz = getTimeZoneOffsetFromGoogle(now, loc, dst);
+    }
+    if(timezonedbKey != "" && tz == 11) {   // 11 is set as a time zone error
+        if (loc != "" && loc != "0") {
             tz = getTimeZoneOffsetFromTimezonedb(now, loc, "", dst);
         } else {
             tz = getTimeZoneOffsetFromTimezonedb(now, "", getPublicIP(), dst);
         }
-    } else if(ipStackKey != "") {
+    }
+    if(ipStackKey != "" && tz == 11) {
         tz = getTimeZoneOffsetFromIpstack(now, getPublicIP(), dst);
-    } else {
+    } 
+    if(tz == 11) {
         tz = 0;
         *dst = 0;
         #ifdef DEBUG
