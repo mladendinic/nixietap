@@ -51,7 +51,7 @@ WiFiManagerParameter monthWM("Month", "Month: (1-January,..., 12-December)", WMM
 WiFiManagerParameter dayWM("Day", "Day: (From 1 to 31)", WMDay, 2);
 WiFiManagerParameter hoursWM("Hours", "Hours: (24h format)", WMHours, 2);
 WiFiManagerParameter minutesWM("Minutes", "Minutes: ", WMMinutes, 2);
-WiFiManagerParameter formatWM("TimeFormat", "Time format(24h=1/12h=0): ", WMTimeFormat, 1);
+WiFiManagerParameter formatWM("TimeFormat", "Time format(24h=1/12h=0): ", WMTimeFormat, 2);
 WiFiManagerParameter text3("<h1><center>Configuration of API Key</center></h1>");
 WiFiManagerParameter text4("<p><b>Please fill in the field for which you have a key:</b></p>");
 WiFiManagerParameter timezonedbKey("Key_1", "TimezoneDB API Key: ", tzdbKey, 50);
@@ -59,7 +59,7 @@ WiFiManagerParameter ipStackKey("Key_2", "IPstack API Key: ", stackKey, 50);
 WiFiManagerParameter googleLocKey("Key_3", "Google Geolocation API Key: ", googleLKey, 50);
 WiFiManagerParameter googleTimeZoneKey("Key_4", "Google Time Zone API Key: ", googleTZkey, 50);
 WiFiManagerParameter openWeatherMapKey("Key_5", "Open Weather Map API Key: ", weatherKey, 50);
-WiFiManagerParameter openWeatherMapFormat("Key_6", "Please select weather format(Metric=1/Imperial=0): ", WMweatherFormat, 2);
+WiFiManagerParameter openWeatherMapFormat("WeatherFormat", "Please select weather format(Metric=1/Imperial=0): ", WMweatherFormat, 2);
 WiFiManagerParameter text5("<p><b>All entered parameters will be permanently saved until they are replaced with the new one.</b></p>");
 WiFiManagerParameter text6("<h1><center>Configuration of crypto currency ID</center></h1>");
 WiFiManagerParameter cryptoID("cryptoID", "Enter cryptocurrency ID: (Example: Bitcoin: 1, Litecoin: 2, Ethereum: 1027, Ripple: 52): ", currencyID, 4);
@@ -198,6 +198,9 @@ void checkForAPInvoke() {
             nixieTap.write(10, 10, 10, 10, 0);
             disableSecDot(); // If dots are not disabled, precisely RTC_IRQ_PIN interrupt, ConfigPortal will chrach.
             movingDot.attach(0.2, scrollDots);
+            #ifdef DEBUG
+                Serial.println("---------------------------------------------------------------------------------------------");
+            #endif // DEBUG
             wifiManager.setConfigPortalTimeout(800);
             // This will run a new config portal if the conditions are met.
             if(!wifiManager.startConfigPortal("NixieTap", "Nixie123")) {
@@ -224,6 +227,9 @@ void checkForAPInvoke() {
 }
 
 void processSyncEvent(NTPSyncEvent_t ntpEvent) {
+    #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
+    #endif // DEBUG
     if(ntpEvent) {
         #ifdef DEBUG
             Serial.print("Time Sync error: ");
@@ -247,7 +253,7 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
             delay(2000);
     } else {
         #ifdef DEBUG
-            Serial.println("Got NTP time! UTC: " + NTP.getTimeStr());
+            Serial.println("NTP time is obtained: " + NTP.getTimeStr());
         #endif // DEBUG
         // Modifies UTC depending on the selected time zone. 
         // After that the time is sent to the RTC and Time library.
@@ -265,9 +271,10 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
 }
 void readParameters() {
     #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Reading saved parameters from EEPROM.");
     #endif
-    EEPROM.begin(264);
+    EEPROM.begin(266);
     int EEaddress = 0;
     EEPROM.get(EEaddress, tzdbKey);
     if(tzdbKey[0] != '\0')
@@ -295,6 +302,7 @@ void readParameters() {
     EEaddress += sizeof(currencyID);
     EEPROM.get(EEaddress, weatherFormat);
     #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Saved API Keys from EEPROM: ");
         if(tzdbKey[0] != '\0')
             Serial.println("  Timezonedb Key: " + String(tzdbKey));
@@ -308,14 +316,18 @@ void readParameters() {
             Serial.println("  OneWeaterMap Key: " + String(weatherKey));
         if(currencyID[0] != '\0')
             Serial.println("  Cryptocurrency ID: " + String(currencyID));
+        Serial.printf("  Weather format is (Celsius=1/Fahrenheit=0): %d\n", weatherFormat);
+        Serial.printf("  Time format is (24h=1/12h=0): %d\n", timeFormat);
+        Serial.println("---------------------------------------------------------------------------------------------");
     #endif // DEBUG
     EEPROM.end();
 }
 void syncParameters() {
     #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Starting synchronization of parameters.");
     #endif // DEBUG
-    EEPROM.begin(264); // Number of bytes to allocate for parameters.
+    EEPROM.begin(266); // Number of bytes to allocate for parameters.
     int EEaddress = 0;
     char newKey[50];
     bool newTime = false;

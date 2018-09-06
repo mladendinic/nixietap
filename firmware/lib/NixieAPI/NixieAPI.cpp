@@ -3,6 +3,9 @@
 NixieAPI::NixieAPI() {
 }
 void NixieAPI::applyKey(String key, uint8_t selectAPI) {
+    #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
+    #endif // DEBUG
     switch(selectAPI) {
         case 0 : 
                 timezonedbKey = key;
@@ -52,6 +55,7 @@ String NixieAPI::getSurroundingWiFiJson() {
     String wifiArray = "[\n";
     int8_t numWifi = WiFi.scanNetworks();
     #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println(String(numWifi) + " WiFi networks found.");
     #endif // DEBUG
     for(uint8_t i = 0; i < numWifi; i++) {
@@ -84,6 +88,9 @@ String NixieAPI::getPublicIP() {
         String headers = "", body = "";
         bool finishedHeaders = false, currentLineIsBlank = false, gotResponse = false, bodyStarts = false, bodyEnds = false;
         long timeout;
+        #ifdef DEBUG
+            Serial.println("---------------------------------------------------------------------------------------------");
+        #endif // DEBUG
         if(client.connect("api.ipify.org", 80)) {
             #ifdef DEBUG
                 Serial.println("Connected to ipify.org!");
@@ -194,6 +201,9 @@ String NixieAPI::getLocFromIpstack(String publicIP) {
     }
     String URL = "http://api.ipstack.com/" + publicIP + "?access_key=" + ipStackKey + "&output=json&fields=country_name,region_name,city,latitude,longitude";
     http.setUserAgent(UserAgent);
+    #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
+    #endif // DEBUG
     if(!http.begin(URL)) {
         #ifdef DEBUG
             Serial.println(F("getLocFromIpstack: Connection failed!"));
@@ -257,6 +267,9 @@ String NixieAPI::getLocFromGoogle() {
     bool finishedHeaders = false, currentLineIsBlank = false, gotResponse = false;
     const char* googleLocApiHost = "www.googleapis.com";
     const char* googleLocApiUrl = "/geolocation/v1/geolocate";
+    #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
+    #endif // DEBUG
     if(client.connect(googleLocApiHost, 443)) {
         #ifdef DEBUG
             Serial.println("Connected to Google Location API endpoint!");
@@ -350,6 +363,9 @@ String NixieAPI::getLocFromIpapi(String publicIP) {
     String payload = "";
     String URL = "http://ip-api.com/json/" + publicIP;
     http.setUserAgent(UserAgent);
+    #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
+    #endif // DEBUG
     if(!http.begin(URL)) {
         #ifdef DEBUG
             Serial.println(F("getLocFromIpapi: Connection failed!"));
@@ -439,6 +455,9 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
     }
     String URL = "http://api.ipstack.com/" + publicIP + "?access_key=" + ipStackKey + "&output=json&fields=time_zone.id,time_zone.gmt_offset,time_zone.is_daylight_saving";
     String payload, tzname;
+    #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
+    #endif // DEBUG
     http.setUserAgent(UserAgent);
     if(!http.begin(URL)) {
         #ifdef DEBUG
@@ -493,6 +512,7 @@ int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *
     int tz = 0;
     String URL = "https://maps.googleapis.com/maps/api/timezone/json?location=" + location + "&timestamp=" + String(now) + "&key=" + googleTimeZoneKey;
     #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Requesting URL: " + URL);
     #endif // DEBUG
     String payload, tzName, tzId;
@@ -515,8 +535,8 @@ int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *
                     tzName = root["timeZoneName"].as<String>();
                     tzId = root["timeZoneId"].as<String>();
                     #ifdef DEBUG
-                        Serial.println("Your Time Zone name is:" + tzName + " (Offset from UTC: " + String(tz) + ") at location: " + tzId);
-                        Serial.printf("Is DST(Daylight saving time) active at your location: %s", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");     
+                        Serial.println("Your Time Zone name is: " + tzName + " (Offset from UTC: " + String(tz) + ") at location: " + tzId);
+                        Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");     
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
@@ -557,6 +577,9 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
         URL = "http://api.timezonedb.com/v2/get-time-zone?key=" + timezonedbKey + "&format=json&by=position&position&lat=" + location + "&time=" + String(now) + "&fields=zoneName,gmtOffset,dst";
     else 
         URL = "http://api.timezonedb.com/v2/get-time-zone?key=" + timezonedbKey + "&format=json&by=ip&ip=" + ip + "&time=" + String(now) + "&fields=zoneName,gmtOffset,dst";
+    #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
+    #endif // DEBUG
     http.setUserAgent(UserAgent);
     if(!http.begin(URL)) {
         #ifdef DEBUG
@@ -580,8 +603,8 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
                     }
                     tzname = root["zoneName"].as<String>();
                     #ifdef DEBUG
-                        Serial.println("Your Time Zone name is:" + tzname + " (Offset from UTC: " + String(tz) + ")");
-                        Serial.printf("Is DST(Daylight saving time) active at your location: %s", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
+                        Serial.println("Your Time Zone name is: " + tzname + " (Offset from UTC: " + String(tz) + ")");
+                        Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
@@ -610,10 +633,10 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
 int NixieAPI::getTimezone(time_t now, uint8_t *dst) {
     int tz;
     String loc = getLocation();
-    if(googleTimeZoneKey != "" && loc != "" && loc != "0") {
+    if(googleTimeZoneKey != "" && (loc != "" || loc != "0")) {
         tz = getTimeZoneOffsetFromGoogle(now, getLocation(), dst);
     } else if(timezonedbKey != "") {
-        if(loc != "" && loc != "0") {
+        if(loc != "" || loc != "0") {
             tz = getTimeZoneOffsetFromTimezonedb(now, loc, "", dst);
         } else {
             tz = getTimeZoneOffsetFromTimezonedb(now, "", getPublicIP(), dst);
@@ -640,6 +663,7 @@ String NixieAPI::getCryptoPrice(char* currencyID) {
     String URL = "https://api.coinmarketcap.com/v2/ticker/" + String(currencyID) + "/";
     String payload, price, cryptoName;
     #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Requesting price of a selected currency from: " + URL);
     #endif // DEBUG
     http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
@@ -699,6 +723,7 @@ String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
     location.replace(",", "&lon="); // This API request this format of coordinates: &lat=45.0&lng=19.0
     String URL = "http://api.openweathermap.org/data/2.5/weather?lat=" + location + "&units=" + formatType + "&APPID=" + openWeaterMapKey;
     #ifdef DEBUG
+        Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Requesting temperature for my location from: " + URL);
     #endif // DEBUG
     http.setUserAgent(UserAgent);
@@ -724,7 +749,8 @@ String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
                         temperature.remove(dotPos);
                     }
                     #ifdef DEBUG
-                        Serial.println("Temperature at your location is " + temperature + "degrees.");
+                        String degreeType = (format == 1) ? "celsius" : "fahrenheit";
+                        Serial.printf("Temperature at your location is %s degrees %s.\n", temperature.c_str(), degreeType.c_str());
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG

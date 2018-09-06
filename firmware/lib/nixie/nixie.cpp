@@ -113,6 +113,7 @@ void Nixie::writeNumber(String newNumber, unsigned int movingSpeed) {
         oldNumber = newNumber;
         String number = newNumber;
         #ifdef DEBUG
+            Serial.println("---------------------------------------------------------------------------------------------");
             Serial.println("Number to display is: " + number);
         #endif // DEBUG
         number.trim(); // Get a version of the string with any leading and trailing whitespace removed.
