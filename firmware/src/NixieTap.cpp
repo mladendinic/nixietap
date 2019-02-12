@@ -36,26 +36,33 @@ Ticker movingDot, priceRefresh, temperatureRefresh; // Initializing software tim
 void setup() {
     // Touch button interrupt.
     attachInterrupt(digitalPinToInterrupt(BUTTON), buttonPressed, RISING);
+    setTime(9,47, 0, 24, 2,2019);
+    RTC.set(now());
 
-    movingDot.attach(0.2, scrollDots); // This is the software timer interrupt which calls function scrollDots every 0,4s.
 }
 
 void loop() {
     enableSecDot();
     
     // When the button is pressed nixie tubes will change the displaying mode from time to date, and vice verse. 
-    if(state >= 3) state = 0;
+    if(state >= 4) state = 0;
     switch(state) {
-        case 0 : // Display time.
+	case 0 : // Scroll dots
+		nixieTap.writeNumber("..", 200);
+		break;	
+        case 1 : // Display time.
+		movingDot.detach();
+		enableSecDot();
                 if(now() != prevTime) { // Update the display only if time has changed.
                     prevTime = now();
                     nixieTap.writeTime(now(), dot_state, timeFormat);
                 }
                 break;
-        case 1 : // Display date.
+        case 2 : // Display date.
                 nixieTap.writeDate(now(), 1);
                 break;
-        case 2 : // Cryptocurrency price
+        case 3 : // Cryptocurrency price
+		nixieTap.writeNumber("121.578", 350);
                 break;
        default:       
                 #ifdef DEBUG
