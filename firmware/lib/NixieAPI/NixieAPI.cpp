@@ -161,17 +161,18 @@ String NixieAPI::getPublicIP() {
                     currentLineIsBlank = false;
                 }
             }
-            DynamicJsonBuffer jsonBuffer;
-            JsonObject& root = jsonBuffer.parseObject(body);
-            if(root.success()) {
-                ip = root["ip"].as<String>();
+            DynamicJsonDocument doc(1024);
+            DeserializationError error = deserializeJson(doc, body);
+            if(!error) {
+                ip = doc["ip"].as<String>();
                 #ifdef DEBUG
                     Serial.println("Your Public IP location is: " + ip);
                 #endif // DEBUG
                 return ip;
             } else {
                 #ifdef DEBUG
-                    Serial.println("Failed to parse JSON!");
+                    Serial.print("Failed to deserialize JSON, error code: ");
+                    Serial.println(error.c_str());
                 #endif // DEBUG
                 return "0";
             }
@@ -194,6 +195,7 @@ String NixieAPI::getPublicIP() {
  *  https://ipstack.com/                              *
  *                                                    */
 String NixieAPI::getLocFromIpstack(String publicIP) {
+    WiFiClient client;
     HTTPClient http;
     String payload = "";
     if(publicIP == "") {
@@ -204,7 +206,7 @@ String NixieAPI::getLocFromIpstack(String publicIP) {
     #ifdef DEBUG
         Serial.println("---------------------------------------------------------------------------------------------");
     #endif // DEBUG
-    if(!http.begin(URL)) {
+    if(!http.begin(client, URL)) {
         #ifdef DEBUG
             Serial.println(F("getLocFromIpstack: Connection failed!"));
         #endif // DEBUG
@@ -217,14 +219,14 @@ String NixieAPI::getLocFromIpstack(String publicIP) {
         if(stat > 0) {
             if(stat == HTTP_CODE_OK) {
                 payload = http.getString();
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& root = jsonBuffer.parseObject(payload);
-                if(root.success()) {
-                    String country = root["country_name"];
-                    String region = root["region_name"];
-                    String city = root["city"];
-                    String lat = root["latitude"];
-                    String lng = root["longitude"];
+                DynamicJsonDocument doc(1024);
+                DeserializationError error = deserializeJson(doc, payload);
+                if(!error) {
+                    String country = doc["country_name"];
+                    String region = doc["region_name"];
+                    String city = doc["city"];
+                    String lat = doc["latitude"];
+                    String lng = doc["longitude"];
                     location = lat + "," + lng;
                     #ifdef DEBUG
                         Serial.print("Your IP location is: " + country + ", " + region + ", " + city + ". ");
@@ -232,7 +234,8 @@ String NixieAPI::getLocFromIpstack(String publicIP) {
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
-                        Serial.println(F("getLocFromIpstack: JSON parse failed!"));
+                        Serial.println(F("getLocFromIpstack: JSON deserialization failed, error code: "));
+                        Serial.println(error.c_str());
                         Serial.println(payload);
                     #endif // DEBUG
                     return "0";
@@ -333,19 +336,20 @@ String NixieAPI::getLocFromGoogle() {
         gotResponse = true;
     }
     if(gotResponse) {
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& root = jsonBuffer.parseObject(hull);
-        if(root.success()) {
-            accuracy = root["accuracy"].as<String>();
-            lat = root["location"]["lat"].as<String>(); 
-            lng = root["location"]["lng"].as<String>();
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, hull);
+        if(!error) {
+            accuracy = doc["accuracy"].as<String>();
+            lat = doc["location"]["lat"].as<String>(); 
+            lng = doc["location"]["lng"].as<String>();
             location = lat + "," + lng;
             #ifdef DEBUG
                 Serial.println("Your location is: " + location + " \nThe accuracy of the estimated location is: " + accuracy + "m");
             #endif // DEBUG
         } else {
             #ifdef DEBUG
-                Serial.println("getLocFromGoogle: Failed to parse JSON!");
+                Serial.println("getLocFromGoogle: Failed to deserialize JSON, error code: ");
+                Serial.println(error.c_str());
             #endif // DEBUG
             return "0";
         }
@@ -359,6 +363,7 @@ String NixieAPI::getLocFromGoogle() {
  *  http://ip-api.com/                                 *
  *                                                     */
 String NixieAPI::getLocFromIpapi(String publicIP) {
+    WiFiClient client;
     HTTPClient http;
     String payload = "";
     String URL = "http://ip-api.com/json/" + publicIP;
@@ -366,7 +371,7 @@ String NixieAPI::getLocFromIpapi(String publicIP) {
     #ifdef DEBUG
         Serial.println("---------------------------------------------------------------------------------------------");
     #endif // DEBUG
-    if(!http.begin(URL)) {
+    if(!http.begin(client, URL)) {
         #ifdef DEBUG
             Serial.println(F("getLocFromIpapi: Connection failed!"));
         #endif // DEBUG
@@ -379,14 +384,14 @@ String NixieAPI::getLocFromIpapi(String publicIP) {
         if(stat > 0) {
             if(stat == HTTP_CODE_OK) {
                 payload = http.getString();
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& root = jsonBuffer.parseObject(payload);
-                if(root.success()) {
-                    String country = root["country"];
-                    String region = root["region"];
-                    String city = root["city"];
-                    String lat = root["lat"];
-                    String lng = root["lon"];
+                DynamicJsonDocument doc(1024);
+                DeserializationError error = deserializeJson(doc, payload);
+                if(!error) {
+                    String country = doc["country"];
+                    String region = doc["region"];
+                    String city = doc["city"];
+                    String lat = doc["lat"];
+                    String lng = doc["lon"];
                     location = lat + "," + lng;
                     #ifdef DEBUG
                         Serial.print("Your IP location is: " + country + ", " + region + ", " + city + ". ");
@@ -394,7 +399,8 @@ String NixieAPI::getLocFromIpapi(String publicIP) {
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
-                        Serial.println(F("getLocFromIpapi: JSON parse failed!"));
+                        Serial.println(F("getLocFromIpapi: JSON deserialization failed, error code: "));
+                        Serial.println(error.c_str());
                         Serial.println(payload);
                     #endif // DEBUG 
                     return "0";
@@ -448,6 +454,7 @@ String NixieAPI::getLocation() {
  *  to buy their services.  https://ipstack.com/              *
  *                                                            */
 int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t *dst) {
+    WiFiClient client;
     HTTPClient http;
     int tz = 0;
     if(publicIP == "") {
@@ -459,7 +466,7 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
         Serial.println("---------------------------------------------------------------------------------------------");
     #endif // DEBUG
     http.setUserAgent(UserAgent);
-    if(!http.begin(URL)) {
+    if(!http.begin(client, URL)) {
         tz = 11;    // 11 is set as a time zone error
         #ifdef DEBUG
             Serial.println(F("getIpstackTimeZoneOffset: Connection failed!"));
@@ -472,12 +479,12 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
         if(stat > 0) {
             if(stat == HTTP_CODE_OK) {
                 payload = http.getString();
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& root = jsonBuffer.parseObject(payload);
-                if(root.success()) {
-                    tz = ((root["gmt_offset"].as<int>()) / 60);  // Time Zone offset in minutes.
-                    *dst = root["is_daylight_saving"].as<int>(); // DST ih hours.
-                    tzname = root["id"].as<String>();
+                DynamicJsonDocument doc(1024);
+                DeserializationError error = deserializeJson(doc, payload);
+                if(!error) {
+                    tz = ((doc["gmt_offset"].as<int>()) / 60);  // Time Zone offset in minutes.
+                    *dst = doc["is_daylight_saving"].as<int>(); // DST ih hours.
+                    tzname = doc["id"].as<String>();
                     #ifdef DEBUG
                         Serial.println("Your Time Zone name is:" + tzname + " (Offset from UTC: " + String(tz) + ")");
                         Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
@@ -485,7 +492,8 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
                 } else {
                     tz = 11;
                     #ifdef DEBUG
-                        Serial.println(F("getTimeZoneOffset: JSON parse failed!"));
+                        Serial.println(F("getTimeZoneOffset: JSON deserialization failed!, error code: "));
+                        Serial.println(error.c_str());
                         Serial.println(payload);
                     #endif // DEBUG
                 }
@@ -512,7 +520,9 @@ int NixieAPI::getTimeZoneOffsetFromIpstack(time_t now, String publicIP, uint8_t 
  *  https://developers.google.com/maps/documentation/timezone/start    *
  *                                                                     */
 int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *dst) {
-    HTTPClient http;
+    std::unique_ptr<BearSSL::WiFiClientSecure>client(new BearSSL::WiFiClientSecure);
+    client->setFingerprint(googleTimeZoneCrt);
+    HTTPClient https;
     int tz = 0;
     String URL = "https://maps.googleapis.com/maps/api/timezone/json?location=" + location + "&timestamp=" + String(now) + "&key=" + googleTimeZoneKey;
     #ifdef DEBUG
@@ -520,25 +530,25 @@ int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *
         Serial.println("Requesting URL: " + URL);
     #endif // DEBUG
     String payload, tzName, tzId;
-    http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
-    http.setUserAgent(UserAgent);
-    if(!http.begin(URL, googleTimeZoneCrt)) {
+    // http.setInsecure();   // https://github.com/esp8266/Arduino/pull/2821
+    https.setUserAgent(UserAgent);
+    if(!https.begin(*client, URL)) {
         tz = 11;    // 11 is set as a time zone error
         #ifdef DEBUG
             Serial.println(F("getTimeZoneOffset: [HTTP] connect failed!"));
         #endif // DEBUG
     } else {
-        int stat = http.GET();
+        int stat = https.GET();
         if(stat > 0) {
             if(stat == HTTP_CODE_OK) {
-                payload = http.getString();
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& root = jsonBuffer.parseObject(payload);
-                if(root.success()) {
-                    tz = ((root["rawOffset"].as<int>()) / 60);  // Time Zone offset in minutes.
-                    *dst = ((root["dstOffset"].as<int>()) / 3600); // DST ih hours.
-                    tzName = root["timeZoneName"].as<String>();
-                    tzId = root["timeZoneId"].as<String>();
+                payload = https.getString();
+                DynamicJsonDocument doc(1024);
+                DeserializationError error = deserializeJson(doc, payload);
+                if(!error) {
+                    tz = ((doc["rawOffset"].as<int>()) / 60);  // Time Zone offset in minutes.
+                    *dst = ((doc["dstOffset"].as<int>()) / 3600); // DST ih hours.
+                    tzName = doc["timeZoneName"].as<String>();
+                    tzId = doc["timeZoneId"].as<String>();
                     #ifdef DEBUG
                         Serial.println("Your Time Zone name is: " + tzName + " (Offset from UTC: " + String(tz) + ") at location: " + tzId);
                         Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");     
@@ -546,7 +556,8 @@ int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *
                 } else {
                     tz = 11;
                     #ifdef DEBUG
-                        Serial.println(F("getTimeZoneOffset: JSON parse failed!"));
+                        Serial.println(F("getTimeZoneOffset: JSON deserialization failed, error code: "));
+                        Serial.println(error.c_str());
                         Serial.println(payload);
                     #endif // DEBUG
                 }
@@ -559,11 +570,11 @@ int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *
         } else {
             tz = 11;
             #ifdef DEBUG
-            Serial.printf("getTimeZoneOffset: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            Serial.printf("getTimeZoneOffset: [HTTP] GET failed: %s\r\n", https.errorToString(stat).c_str());
             #endif // DEBUG
         }
     }
-    http.end();
+    https.end();
 
     return tz;
 }
@@ -577,6 +588,7 @@ int NixieAPI::getTimeZoneOffsetFromGoogle(time_t now, String location, uint8_t *
  *  https://timezonedb.com/                                             *
  *                                                                      */
 int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, String ip, uint8_t *dst) {
+    WiFiClient client;
     HTTPClient http;
     int tz = 0;
     String URL, payload, tzname;
@@ -589,7 +601,7 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
         Serial.println("---------------------------------------------------------------------------------------------");
     #endif // DEBUG
     http.setUserAgent(UserAgent);
-    if(!http.begin(URL)) {
+    if(!http.begin(client, URL)) {
         tz = 11;    // 11 is set as a time zone error
         #ifdef DEBUG
             Serial.println(F("getTimeZoneOffsetFromTimezonedb: Connection failed!"));
@@ -602,15 +614,15 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
         if(stat > 0) {
             if(stat == HTTP_CODE_OK) {
                 payload = http.getString();
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& root = jsonBuffer.parseObject(payload);
-                if(root.success()) {
-                    tz = ((root["gmtOffset"].as<int>()) / 60);  // Time Zone offset in minutes.
-                    *dst = root["dst"].as<int>(); // DST ih hours.
+                DynamicJsonDocument doc(1024);
+                DeserializationError error = deserializeJson(doc, payload);
+                if(!error) {
+                    tz = ((doc["gmtOffset"].as<int>()) / 60);  // Time Zone offset in minutes.
+                    *dst = doc["dst"].as<int>(); // DST ih hours.
                     if(*dst) {
                         tz -= 60;
                     }
-                    tzname = root["zoneName"].as<String>();
+                    tzname = doc["zoneName"].as<String>();
                     #ifdef DEBUG
                         Serial.println("Your Time Zone name is: " + tzname + " (Offset from UTC: " + String(tz) + ")");
                         Serial.printf("Is DST(Daylight saving time) active at your location: %s\n", *dst == 1 ? "Yes (+1 hour)" : "No (+0 hour)");
@@ -618,7 +630,8 @@ int NixieAPI::getTimeZoneOffsetFromTimezonedb(time_t now, String location, Strin
                 } else {
                     tz = 11;
                     #ifdef DEBUG
-                        Serial.println(F("getTimeZoneOffsetFromTimezonedb: JSON parse failed!"));
+                        Serial.println(F("getTimeZoneOffsetFromTimezonedb: JSON deserialization failed, error code: "));
+                        Serial.println(error.c_str());
                         Serial.println(payload);
                     #endif // DEBUG
                 }
@@ -674,36 +687,39 @@ int NixieAPI::getTimezone(time_t now, uint8_t *dst) {
  *  https://coinmarketcap.com/api/#endpoint_listings                *
  *                                                                  */
 String NixieAPI::getCryptoPrice(char* currencyID) {
-    HTTPClient http;
+    std::unique_ptr<BearSSL::WiFiClientSecure>client(new BearSSL::WiFiClientSecure);
+    client->setFingerprint(cryptoPriceCrt);
+    HTTPClient https;
     String URL = "https://api.coinmarketcap.com/v2/ticker/" + String(currencyID) + "/";
     String payload, price, cryptoName;
     #ifdef DEBUG
         Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Requesting price of a selected currency from: " + URL);
     #endif // DEBUG
-    http.setIgnoreTLSVerifyFailure(true);   // https://github.com/esp8266/Arduino/pull/2821
-    http.setUserAgent(UserAgent);
-    if(!http.begin(URL, cryptoPriceCrt)) {
+    //http.setInsecure();   // https://github.com/esp8266/Arduino/pull/2821
+    https.setUserAgent(UserAgent);
+    if(!https.begin(*client, URL)) {
         #ifdef DEBUG
             Serial.println(F("CMC failed to connect!"));
         #endif // DEBUG
         return "0";
     } else {
-        int stat = http.GET();
+        int stat = https.GET();
         if(stat > 0) {
             if(stat == HTTP_CODE_OK) {
-                payload = http.getString();
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& root = jsonBuffer.parseObject(payload);
-                if(root.success()) {
-                    price = root["data"]["quotes"]["USD"]["price"].as<String>();
-                    cryptoName = root["data"]["name"].as<String>();
+                payload = https.getString();
+                DynamicJsonDocument doc(1024);
+                DeserializationError error = deserializeJson(doc, payload);
+                if(!error) {
+                    price = doc["data"]["quotes"]["USD"]["price"].as<String>();
+                    cryptoName = doc["data"]["name"].as<String>();
                     #ifdef DEBUG
                         Serial.println("The current price of " + cryptoName + " is: " + price);
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
-                        Serial.println(F("CMC parse failed!"));
+                        Serial.println(F("CMC deserialization failed, error code: "));
+                        Serial.println(error.c_str());
                         Serial.println(payload);
                     #endif // DEBUG
                     return "0";
@@ -716,12 +732,12 @@ String NixieAPI::getCryptoPrice(char* currencyID) {
             }
         } else {
             #ifdef DEBUG
-            Serial.printf("CMC: [HTTP] GET failed: %s\r\n", http.errorToString(stat).c_str());
+            Serial.printf("CMC: [HTTP] GET failed: %s\r\n", https.errorToString(stat).c_str());
             #endif // DEBUG
             return "0";
         }
     }
-    http.end();
+    https.end();
 
     return price;
 }
@@ -732,6 +748,7 @@ String NixieAPI::getCryptoPrice(char* currencyID) {
  *  https://openweathermap.org/api                                            *
  *                                                                            */
 String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
+    WiFiClient client;
     HTTPClient http;
     String payload, temperature;
     String formatType = (format == 1) ? "metric" : "imperial";
@@ -742,7 +759,7 @@ String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
         Serial.println("Requesting temperature for my location from: " + URL);
     #endif // DEBUG
     http.setUserAgent(UserAgent);
-    if(!http.begin(URL)) {
+    if(!http.begin(client, URL)) {
         #ifdef DEBUG
             Serial.println(F("getTempAtMyLocation: Connection failed!"));
         #endif // DEBUG
@@ -754,10 +771,10 @@ String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
         if(stat > 0) {
             if(stat == HTTP_CODE_OK) {
                 payload = http.getString();
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& root = jsonBuffer.parseObject(payload);
-                JsonObject& main = root["main"];
-                if(root.success()) {
+                DynamicJsonDocument doc(1024);
+                DeserializationError error = deserializeJson(doc, payload);
+                JsonObject main = doc["main"];
+                if(!error) {
                     temperature = main["temp"].as<String>();
                     int8_t dotPos = temperature.indexOf('.');
                     if(dotPos != -1) {
@@ -769,7 +786,8 @@ String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
                     #endif // DEBUG
                 } else {
                     #ifdef DEBUG
-                        Serial.println(F("getTempAtMyLocation: JSON parse failed!"));
+                        Serial.println(F("getTempAtMyLocation: JSON deserialization failed, error code: "));
+                        Serial.println(error.c_str());
                         Serial.println(payload);
                     #endif // DEBUG
                 }

@@ -22,8 +22,8 @@ class NixieAPI {
     String googleLocKey = ""; // You can get your key here: https://developers.google.com/maps/documentation/geolocation/get-api-key
     String googleTimeZoneKey = ""; // You can get your key here: https://developers.google.com/maps/documentation/timezone/get-api-key
     String openWeaterMapKey = ""; // // You can get your key here: https://openweathermap.org/api
-    String googleTimeZoneCrt = "3A 93 DD B0 E6 91 AE 99 56 D2 23 F3 21 55 2C 13 05 AC 82 B0"; // Https fingerprint certification. Details at: https://github.com/esp8266/Arduino/blob/master/doc/esp8266wifi/client-secure-examples.rst
-    String cryptoPriceCrt = "EF 9D 44 BA 1A 91 4C 42 06 B1 6A 25 71 26 58 61 BA DA FA B9"; // Use web browser to view and copy, SHA1 fingerprint of the certificate
+    const uint8_t googleTimeZoneCrt[20] = {0x5A, 0xCF, 0xFE, 0xF0, 0xF1, 0xA6, 0xF4, 0x5F, 0xD2, 0x11, 0x11, 0xC6, 0x1D, 0x2F, 0x0E, 0xBC, 0x39, 0x8D, 0x50, 0xE0}; // Https fingerprint certification. Details at: https://github.com/esp8266/Arduino/blob/master/doc/esp8266wifi/client-secure-examples.rst
+    const uint8_t cryptoPriceCrt[20] =  {0x5A, 0xCF, 0xFE, 0xF0, 0xF1, 0xA6, 0xF4, 0x5F, 0xD2, 0x11, 0x11, 0xC6, 0x1D, 0x2F, 0x0E, 0xBC, 0x39, 0x8D, 0x50, 0xE0};  // Use web browser to view and copy, SHA1 fingerprint of the certificate
     
     String location; // This allows us to save our location so that we can reuse it in the code, without the need to requesting it again from the server.
     String ip;

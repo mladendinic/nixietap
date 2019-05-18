@@ -17,7 +17,6 @@
 void irq_1Hz_int();         // Interrupt function for changing the dot state every 1 second.
 void buttonPressed();       // Interrupt function when button is pressed.
 void enableSecDot();
-void enableScrollDots(uint8_t movingSpeed);
 void disableSecDot();
 void scrollDots();          // Interrupt function for scrolling dots.
 void checkForAPInvoke();    // Checks if the user tapped 5 times in a rapid succession. If yes, invokes AP mode.
@@ -103,7 +102,7 @@ void setup() {
     std::vector<const char *> menu = {"wifi","param","info","sep","erase","exit"};
     wifiManager.setMenu(menu);
 
-    movingDot.attach(0.2, scrollDots); // This is the software timer interrupt which calls function scrollDots every 0,4s.
+    movingDot.attach(0.2, scrollDots); // This is the software timer interrupt which calls function scrollDots every 0,2s.
     priceRefresh.attach(300, cryptoRefresh); // This will refresh the cryptocurrency price every 5min.
     temperatureRefresh.attach(3600, weatherRefresh);
     
