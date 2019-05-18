@@ -146,7 +146,7 @@ void loop() {
     checkForAPInvoke(); // This function allows you to manually start the access point on demand. (By tapping the button 5 times in a rapid succesion)
     
     // When the button is pressed nixie tubes will change the displaying mode from time to date, and vice verse. 
-    if(state >= 4) state = 0;
+    if(state >= 3) state = 0;
     switch(state) {
         case 0 : // Display time.
                 if(now() != prevTime) { // Update the display only if time has changed.
@@ -166,18 +166,18 @@ void loop() {
                     nixieTap.writeNumber(cryptoCurrencyPrice, 350);
                 } else state++;
                 break;
-        case 3 :  // Display temperature.
-                if(weatherKey[0] != '\0') {
-                    if(weatherRefreshFlag) {
-                        weatherRefreshFlag = 0;
-                        String loc = nixieTapAPI.getLocation();
-                        if(loc != "0") {
-                            temperature = nixieTapAPI.getTempAtMyLocation(loc, weatherFormat);
-                        } else state++;
-                    }
-                    nixieTap.writeNumber(temperature, 0);
-                } else state++;
-                break;
+        // case 3 :  // Display temperature.
+        //         if(weatherKey[0] != '\0') {
+        //             if(weatherRefreshFlag) {
+        //                 weatherRefreshFlag = 0;
+        //                 String loc = nixieTapAPI.getLocation();
+        //                 if(loc != "0") {
+        //                     temperature = nixieTapAPI.getTempAtMyLocation(loc, weatherFormat);
+        //                 } else state++;
+        //             }
+        //             nixieTap.writeNumber(temperature, 0);
+        //         } else state++;
+        //         break;
         default:       
                 #ifdef DEBUG
                     Serial.println("Error. Unknown state of a button!");
