@@ -17,7 +17,8 @@ void Nixie::begin()
     // Configure the ESP to receive interrupts from a RTC. 
     pinMode(RTC_IRQ_PIN, INPUT);
     // Initialise the integrated button in a NixieTap as a input. 
-    pinMode(BUTTON, INPUT_PULLUP);
+    pinMode(TOUCH_BUTTON, INPUT_PULLUP);
+    pinMode(CONFIG_BUTTON, INPUT_PULLDOWN_16);
     // fire up the RTC
     RTC.begin(RTC_SDA_PIN, RTC_SCL_PIN);
     RTC.setCharger(2);

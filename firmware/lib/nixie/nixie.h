@@ -6,11 +6,12 @@
 #include <SPI.h>
 #include <BQ32000RTC.h>
 
-#define RTC_SDA_PIN 0
-#define RTC_SCL_PIN 2
-#define RTC_IRQ_PIN 5
-#define SPI_CS 15
-#define BUTTON 4
+#define RTC_SDA_PIN D3
+#define RTC_SCL_PIN D4
+#define RTC_IRQ_PIN D1
+#define SPI_CS D8
+#define TOUCH_BUTTON D2
+#define CONFIG_BUTTON D0
 
 #ifndef DEBUG
     #define DEBUG
