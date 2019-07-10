@@ -279,22 +279,18 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
                 Serial.println("If restart does not help. There might be a problem with the NTP server or your WiFi connection. You can set the time manually.");
             #endif
         } else {
-            #ifdef DEBUG
-                Serial.print("NTP time is obtained: ");
-                Serial.println(NTP.getLastNTPSync());
-            #endif
             if(NTP.getLastNTPSync() != 0) {
-                // Collect NTP time, put it in RTC and stop NTP synchronization.
-                RTC.set(NTP.getLastNTPSync());
-                NTP.stop();
-                setSyncProvider(RTC.get);
+                #ifdef DEBUG
+                    Serial.print("NTP time is obtained: ");
+                    Serial.println(NTP.getLastNTPSync());
+                #endif
                 if(setTimeAutoFlag) {
                     #ifdef DEBUG
                         Serial.println("Auto time adjustment started!");
                     #endif // DEBUG
                     int16_t newTimeZoneOffset;
                     uint8_t newdst;
-                    newTimeZoneOffset = nixieTapAPI.getTimezoneOffset(now(), &newdst);
+                    newTimeZoneOffset = nixieTapAPI.getTimezoneOffset(NTP.getLastNTPSync(), &newdst);
                     // New timeZoneOffset and dst must be saved this way because they do not come from WIFIManager API.
                     if(newTimeZoneOffset != timeZoneOffset || newdst != dst) {
                         EEPROM.begin(512);
@@ -314,8 +310,10 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
                         Serial.println("Semi-auto time adjustment started!");
                     }
                 #endif // DEBUG
-                NTP.setTimeZone(timeZoneOffset/60, timeZoneOffset%60);
-                NTP.setDayLight(dst);
+                // Collect NTP time, put it in RTC and stop NTP synchronization.
+                RTC.set(NTP.getLastNTPSync() + timeZoneOffset*60 + dst*60*60);
+                NTP.stop();
+                setSyncProvider(RTC.get);
                 wifiFirstConnected = false;
             }
         }
