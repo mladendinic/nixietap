@@ -37,6 +37,9 @@ char WMTimeFormat[4] = "", WMYear[6] = "", WMMonth[4] = "", WMDay[4] = "", WMHou
 char WMsetTimeManuallyFlag[4] = "", WMsetTimeSemiAutoFlag[4] = "", WMsetTimeAutoFlag[4] = "", WMTimeZoneOffset[8] = "", WMdst[4] = "";
 char tzdbKey[50] = "", stackKey[50] = "", googleLKey[50] = "", googleTZkey[50] = "", weatherKey[50] = "", SSID[30] = "NixieTap", password[30] = "NixieTap";
 char WMtimeEnable[4] = "", WMdateEnable[4] = "", WMcryptoEnable[4] = "", WMtempEnable[4] = "";
+char buttonCounter;
+uint16_t buttonPressedCounter;
+bool buttonPressed = false;
 unsigned long previousMillis = 0;
 String cryptoCurrencyPrice = "", temperature = "", loc = "";
 Ticker movingDot, priceRefresh, temperatureRefresh; // Initializing software timer interrupt called movingDot and priceRefresh.
@@ -85,6 +88,8 @@ WiFiManagerParameter enableTemperature("temperatureEnable", "Enable temerature d
 
 void setup() {
 
+	nixieTap.write(10,10,10,10,0b10); // progress bar 25%
+
     // This code is for the first time use only. If there is no initial password and SSID in EEPROM memory, code will crash.
     // EEPROM.begin(512);
     // EEPROM.put(250, SSID);
@@ -107,7 +112,7 @@ void setup() {
     #ifdef DEBUG
         delay(6000);    // To have time to open a serial monitor.
     #endif // DEBUG
-    
+
     // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
     // Adding parameters to Settings window in WiFiManager AP.
     wifiManager.addParameter(&text0);
@@ -151,7 +156,12 @@ void setup() {
     std::vector<const char *> menu = {"wifi","param","info","sep","erase","exit"};
     wifiManager.setMenu(menu);
 
+	nixieTap.write(10,10,10,10,0b110); // progress bar 50%
+
     readParameters();           // Reed all stored parameters from EEPROM.
+
+	nixieTap.write(10,10,10,10,0b1110); // progress bar 75%
+
     setSyncProvider(RTC.get);   // the function to get the time from the RTC
     enableSecDot();
     #ifdef DEBUG
@@ -160,12 +170,30 @@ void setup() {
         else
             Serial.println("RTC has set the system time!");
     #endif // DEBUG
+		
+	nixieTap.write(10,10,10,10,0b11110); // progress bar 100%
 }
 void loop() {
     configButton = digitalRead(CONFIG_BUTTON);
     if(configButton) {
-        startPortalManually(); // This function allows you to manually start the access point on demand. (By pressing the button on the back of the device.)
+		buttonCounter++;
+		if (buttonCounter==5) {
+			buttonCounter=0;
+			if (!buttonPressed) { 
+				state++; 
+				buttonPressed = true;
+			}
+			if (buttonPressed) {
+				buttonPressedCounter++;
+				if(buttonPressedCounter==4000) {
+					buttonPressedCounter=0;
+					startPortalManually();
+				}
+			}				
+		}	    
+	
     }
+	else buttonPressed=false;
     // If the time is configured to be set semi-auto or auto and NixiTap is just started, the NTP time request is created.
     if((setTimeSemiAutoFlag || setTimeAutoFlag) && wifiFirstConnected && WiFi.status() == WL_CONNECTED) {
         NTP.onNTPSyncEvent([](NTPSyncEvent_t event) {ntpEvent = event; syncEventTriggered = true;});
