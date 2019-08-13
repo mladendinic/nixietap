@@ -22,6 +22,9 @@ void readParameters();
 void cryptoRefresh();
 void weatherRefresh();
 void updateTime();
+void readAndParseSerial();
+void resetEepromToDefault(); 
+void readButton();
 
 volatile bool dot_state = LOW;
 bool stopDef = false, secDotDef = false;
@@ -46,6 +49,7 @@ Ticker movingDot, priceRefresh, temperatureRefresh; // Initializing software tim
 NTPSyncEvent_t ntpEvent;    // Last triggered event.
 WiFiManager wifiManager;
 time_t t;
+String serialCommand = "";
 
 // Initialization of parameters for manual configuration of time and date.
 WiFiManagerParameter text0("<p><b>Select time adjustment methode: </b></p>");
@@ -88,23 +92,9 @@ WiFiManagerParameter enableTemperature("temperatureEnable", "Enable temerature d
 
 void setup() {
 
+	// This line prevents the ESP from making spurious WiFi networks (ESP_XXXXX)
+	WiFi.mode(WIFI_STA);
 	nixieTap.write(10,10,10,10,0b10); // progress bar 25%
-
-    // This code is for the first time use only. If there is no initial password and SSID in EEPROM memory, code will crash.
-    // EEPROM.begin(512);
-    // EEPROM.put(250, SSID);
-    // EEPROM.put(280, password);
-    // EEPROM.put(310, timeFormat);
-    // EEPROM.put(334, timeEnabled);
-    // EEPROM.put(342, dateEnabled);
-    // EEPROM.put(350, cryptoEnabled);
-    // EEPROM.put(358, temperatureEnabled);
-    // EEPROM.put(366, setTimeManuallyFlag);
-    // EEPROM.put(374, setTimeSemiAutoFlag);
-    // EEPROM.put(382, setTimeAutoFlag);
-    // EEPROM.put(398, timeZoneOffset);
-    // EEPROM.put(414, dst);
-    // EEPROM.commit();
 
     // Touch button interrupt.
     attachInterrupt(digitalPinToInterrupt(TOUCH_BUTTON), tuchButtonPressed, RISING);
@@ -174,26 +164,10 @@ void setup() {
 	nixieTap.write(10,10,10,10,0b11110); // progress bar 100%
 }
 void loop() {
-    configButton = digitalRead(CONFIG_BUTTON);
-    if(configButton) {
-		buttonCounter++;
-		if (buttonCounter==5) {
-			buttonCounter=0;
-			if (!buttonPressed) { 
-				state++; 
-				buttonPressed = true;
-			}
-			if (buttonPressed) {
-				buttonPressedCounter++;
-				if(buttonPressedCounter==4000) {
-					buttonPressedCounter=0;
-					startPortalManually();
-				}
-			}				
-		}	    
-	
-    }
-	else buttonPressed=false;
+	// Polling functions
+	readAndParseSerial();
+	readButton();
+
     // If the time is configured to be set semi-auto or auto and NixiTap is just started, the NTP time request is created.
     if((setTimeSemiAutoFlag || setTimeAutoFlag) && wifiFirstConnected && WiFi.status() == WL_CONNECTED) {
         NTP.onNTPSyncEvent([](NTPSyncEvent_t event) {ntpEvent = event; syncEventTriggered = true;});
@@ -750,3 +724,82 @@ void cryptoRefresh() {
 void weatherRefresh() {
     weatherRefreshFlag = 1;
 }
+
+void readAndParseSerial() {
+
+	if(Serial.available()) {
+		serialCommand = Serial.readStringUntil('\n');
+
+		if(serialCommand.equals("init\r")) {
+			Serial.println("Writing factory defaults to EEPROM...");
+			Serial.println("Hotspot SSID: NixieTap");
+			Serial.println("Hotspot password: NixieTap");
+			Serial.println("Time format: 24h");
+			Serial.println("Enabled display modes: time and date");
+			Serial.println("Disabled display modes: other");
+			Serial.println("Operation mode: semi-auto");
+			Serial.println("DST: 0");
+			Serial.println("Time zone offset: 120min");
+			resetEepromToDefault();
+		}	
+		else {
+			Serial.println("Unknown command.");
+		}
+
+	}
+ 
+}
+
+
+void resetEepromToDefault() {
+	EEPROM.begin(512);
+	// Hotspot SSID
+	EEPROM.put(250, "NixieTap");
+	// Hotspot password
+	EEPROM.put(280, "NixieTap");
+	// Enable time
+    EEPROM.put(334, 1);
+	// Enable date
+    EEPROM.put(342, 1);
+	// Enable crypto
+    EEPROM.put(350, 0);
+	// Enable temperature
+    EEPROM.put(358, 0);
+	// Enable manual mode
+    EEPROM.put(366, 0);
+	// Enable semi-auto mode
+    EEPROM.put(374, 1);
+	// Enable auto mode
+    EEPROM.put(382, 0);
+	// Enable DST
+    EEPROM.put(398, 0);
+	// Time zone offset
+    EEPROM.put(414, 120);
+    EEPROM.commit();
+}
+
+void readButton() {
+    configButton = digitalRead(CONFIG_BUTTON);
+    if(configButton) {
+		buttonCounter++;
+		if (buttonCounter==5) {
+			buttonCounter=0;
+			if (!buttonPressed) { 
+				state++; 
+				buttonPressed = true;
+			}
+			if (buttonPressed) {
+				buttonPressedCounter++;
+				if(buttonPressedCounter==4000) {
+					buttonPressedCounter=0;
+					startPortalManually();
+				}
+			}				
+		}	    
+	
+    }
+	else buttonPressed=false;
+}
+
+
+
