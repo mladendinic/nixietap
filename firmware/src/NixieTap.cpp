@@ -2,13 +2,11 @@
 #include <nixie.h>
 #include <NixieAPI.h>
 #include <BQ32000RTC.h>
-#include <NtpClientLib.h> // Development version is used: https://github.com/gmag11/NtpClient/tree/develop
+#include <NtpClientLib.h> 
 #include <TimeLib.h>
-#include <WiFiManager.h>  // Development version is used: https://github.com/tzapu/WiFiManager/tree/development
+#include <WiFiManager.h> 
 #include <EEPROM.h>
 #include <Ticker.h>
-
-#define DEBUG // When testing the code you should leave DEBUG defined if you want to see messages on the serial monitor.
 
 ICACHE_RAM_ATTR void irq_1Hz_int();         // Interrupt function for changing the dot state every 1 second.
 ICACHE_RAM_ATTR void tuchButtonPressed();   // Interrupt function when button is pressed.
@@ -99,10 +97,6 @@ void setup() {
     // Touch button interrupt.
     attachInterrupt(digitalPinToInterrupt(TOUCH_BUTTON), tuchButtonPressed, RISING);
 
-    #ifdef DEBUG
-        delay(6000);    // To have time to open a serial monitor.
-    #endif // DEBUG
-
     // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
     // Adding parameters to Settings window in WiFiManager AP.
     wifiManager.addParameter(&text0);
@@ -154,13 +148,12 @@ void setup() {
 
     setSyncProvider(RTC.get);   // the function to get the time from the RTC
     enableSecDot();
-    #ifdef DEBUG
-        if(timeStatus()!= timeSet)
-            Serial.println("Unable to sync with the RTC!");
-        else
-            Serial.println("RTC has set the system time!");
-    #endif // DEBUG
-		
+	// Serial debug message
+	if(timeStatus()!= timeSet)
+		Serial.println("Unable to sync with the RTC!");
+	else
+		Serial.println("RTC has set the system time!");
+	
 	nixieTap.write(10,10,10,10,0b11110); // progress bar 100%
 }
 void loop() {
@@ -168,71 +161,64 @@ void loop() {
 	readAndParseSerial();
 	readButton();
 
-    // If the time is configured to be set semi-auto or auto and NixiTap is just started, the NTP time request is created.
+	// Mandatory functions to be executed every cycle
+    t = now(); // update date and time variable
+
+    // If time is configured to be set semi-auto or auto and NixiTap is just started, the NTP request is created.
     if((setTimeSemiAutoFlag || setTimeAutoFlag) && wifiFirstConnected && WiFi.status() == WL_CONNECTED) {
         NTP.onNTPSyncEvent([](NTPSyncEvent_t event) {ntpEvent = event; syncEventTriggered = true;});
         NTP.begin();
         wifiFirstConnected = false;
     }
     if(syncEventTriggered) {
-        // When the syncEventTriggered is triggered, through the NTPClient, Nixie checks if the NTP time is received.
-        // If the NTP time is received, Nixie starts synchronization of RTC time with received NTP time and stops NTPClinet from sending new requests.
-        // If the time is configured semi-auto, Nixie is using saved parameters for time zone offset and dst to properly configure the time before updating it on RTC.
-        // If the time is set automatically, Nixie sends request to the Time Zone API after which it configures time according to new tz and dst values and saves them in EEPROM memory.
         processSyncEvent(ntpEvent);
         syncEventTriggered = false;
     }
     
-    // When the tuch button is pressed nixie tubes will change the displaying mode. 
-    if(timeEnabled || dateEnabled || cryptoEnabled || temperatureEnabled) {
-        if(state > 3) state = 0;
-        if(state == 0 && timeEnabled) {
-            // Display time.
-            currentMinutes = minute();
-            if(currentMinutes != prevMinutes) { // Update the display only if time has changed.
-                prevMinutes = currentMinutes;
-                t = now();
-            }
-            if(dot_state != prev_dot_state) {
-                prev_dot_state = dot_state;
-                nixieTap.writeTime(t, dot_state, timeFormat);
-            }
-        } else if(!timeEnabled && state == 0) state++;
+	// State machine
+    if(state > 3) state = 0;
 
-        if(state == 1 && dateEnabled) {
-            // Display date.
-            t = now();
-            nixieTap.writeDate(t, 1);
-        } else if(!dateEnabled && state == 1) state++;
-        
-        if(state == 2 && cryptoEnabled) {
-            // Cryptocurrency price
-            if(currencyID >= 1 && currencyID <= 9999) {    // If the currency is not selected, this step will be skipped.
-                if(cryptoRefreshFlag) {
-                    cryptoRefreshFlag = 0;
-                    cryptoCurrencyPrice = nixieTapAPI.getCryptoPrice(currencyID);
-                }
-                nixieTap.writeNumber(cryptoCurrencyPrice, 350);
-            } else state++;
-        } else if(!cryptoEnabled && state == 2) state++;
+	// Slot 0 - time
+    if(state == 0 && timeEnabled) {
+        nixieTap.writeTime(t, dot_state, timeFormat);
+    } 
+	else if(!timeEnabled && state == 0) state++;
 
-        if(state == 3 && temperatureEnabled) {
-            // Display temperature.
-            if(weatherKey[0] != '\0') {
-                if(weatherRefreshFlag) {
-                    weatherRefreshFlag = 0;
-                    if(!locationObtained) {
-                        loc = nixieTapAPI.getLocation();
-                    }
-                    if(loc != "0") {
-                        locationObtained = true;
-                        temperature = nixieTapAPI.getTempAtMyLocation(loc, weatherFormat);
-                    } else state++;
-                }
-                nixieTap.writeNumber(temperature, 0);
-            } else state++;
-        } else if(!temperatureEnabled && state == 3) state++;
-    }
+	// Slot 1 - date 
+	if(state == 1 && dateEnabled) {
+		nixieTap.writeDate(t, 1);
+	} 
+	else if(!dateEnabled && state == 1) state++;
+
+	// Slot 2 - crypto price
+	if(state == 2 && cryptoEnabled) {
+		if(currencyID >= 1 && currencyID <= 9999) {    // If currency is not selected, this step will be skipped.
+			if(cryptoRefreshFlag) {
+				cryptoRefreshFlag = 0;
+				cryptoCurrencyPrice = nixieTapAPI.getCryptoPrice(currencyID);
+			}
+			nixieTap.writeNumber(cryptoCurrencyPrice, 350);
+		} else state++;
+	}
+	else if(!cryptoEnabled && state == 2) state++;
+	
+	// Slot 3 - temperature
+	if(state == 3 && temperatureEnabled) {
+		if(weatherKey[0] != '\0') {
+			if(weatherRefreshFlag) {
+				weatherRefreshFlag = 0;
+				if(!locationObtained) {
+					loc = nixieTapAPI.getLocation();
+				}
+				if(loc != "0") {
+					locationObtained = true;
+					temperature = nixieTapAPI.getTempAtMyLocation(loc, weatherFormat);
+				} else state++;
+			}
+			nixieTap.writeNumber(temperature, 0);
+		} else state++;
+	}
+	else if(!temperatureEnabled && state == 3) state++;
 
     // Here you can add new functions for displaying numbers on NixieTap, just follow the basic writing principle from above.
 }
@@ -242,15 +228,11 @@ void startPortalManually() {
     nixieTap.write(10, 10, 10, 10, 0);
     disableSecDot(); // If the dots are not disabled, precisely the RTC_IRQ_PIN interrupt, ConfigPortal will chrach.
     movingDot.attach(0.2, scrollDots);
-    #ifdef DEBUG
-        Serial.println("---------------------------------------------------------------------------------------------");
-    #endif // DEBUG
+	Serial.println("---------------------------------------------------------------------------------------------");
     wifiManager.setConfigPortalTimeout(1800);
     // This will run a new config portal if the conditions are met.
     if(!wifiManager.startConfigPortal(SSID, password)) {
-        #ifdef DEBUG
-            Serial.println("Failed to connect and hit timeout!");
-        #endif // DEBUG
+		Serial.println("Failed to connect and hit timeout!");
         // If the NixieTap is not connected to WiFi, it will collect the entered parameters and configure the RTC according to them.
     }
     updateParameters();
@@ -261,40 +243,37 @@ void startPortalManually() {
 }
 
 void processSyncEvent(NTPSyncEvent_t ntpEvent) {
-    #ifdef DEBUG
-        Serial.println("---------------------------------------------------------------------------------------------");
-    #endif
+	Serial.println("---------------------------------------------------------------------------------------------");
+	// When syncEventTriggered is triggered, through NTPClient, Nixie checks if NTP time is received.
+    // If NTP time is received, Nixie starts synchronization of RTC time with received NTP time and stops NTPClinet from sending new requests.
+    // If time is configured semi-auto, Nixie is using saved parameters for time zone offset and dst to properly configure the time before updating it on RTC.
+    // If time is set automatically, Nixie sends request to the Time Zone API after which it configures time according to new tz and dst values and saves them in EEPROM memory.
+
         if(ntpEvent < 0) {
-            #ifdef DEBUG
-                Serial.print("Time Sync error: ");
-                if(ntpEvent == noResponse) {
-                    Serial.println("NTP server not reachable.");
-                } else if(ntpEvent == invalidAddress) {
-                    Serial.println("Invalid NTP server address.");
-                } else if (ntpEvent == errorSending) {
-                    Serial.println ("Error sending request");
-                } else if (ntpEvent == responseError) {
-                    Serial.println ("NTP response error");
-                }
-                Serial.println("Synchronization will be attempted again after 15 seconds.");
-                Serial.println("If the time is not synced after 2 minutes, please restart Nixie Tap and try again!");
-                Serial.println("If restart does not help. There might be a problem with the NTP server or your WiFi connection. You can set the time manually.");
-            #endif
+			Serial.print("Time Sync error: ");
+			if(ntpEvent == noResponse) {
+				Serial.println("NTP server not reachable.");
+			} else if(ntpEvent == invalidAddress) {
+				Serial.println("Invalid NTP server address.");
+			} else if (ntpEvent == errorSending) {
+				Serial.println ("Error sending request");
+			} else if (ntpEvent == responseError) {
+				Serial.println ("NTP response error");
+			}
+			Serial.println("Synchronization will be attempted again after 15 seconds.");
+			Serial.println("If the time is not synced after 2 minutes, please restart Nixie Tap and try again!");
+			Serial.println("If restart does not help. There might be a problem with the NTP server or your WiFi connection. You can set the time manually.");
         } else {
             if(NTP.getLastNTPSync() != 0) {
-                #ifdef DEBUG
-                    Serial.print("NTP time is obtained: ");
-                    Serial.println(NTP.getLastNTPSync());
-                #endif
+				Serial.print("NTP time is obtained: ");
+				Serial.println(NTP.getLastNTPSync());
                 if(setTimeAutoFlag) {
-                    #ifdef DEBUG
-                        Serial.println("Auto time adjustment started!");
-                    #endif // DEBUG
+					Serial.println("Auto time adjustment started!");
                     int16_t newTimeZoneOffset;
                     uint8_t newdst;
                     newTimeZoneOffset = nixieTapAPI.getTimezoneOffset(NTP.getLastNTPSync(), &newdst);
                     // New timeZoneOffset and dst must be saved this way because they do not come from WIFIManager API.
-                    if(newTimeZoneOffset != timeZoneOffset || newdst != dst) {
+                    if((newTimeZoneOffset != timeZoneOffset) || (newdst != dst)) {
                         EEPROM.begin(512);
                         if(newTimeZoneOffset != timeZoneOffset) {
                             timeZoneOffset = newTimeZoneOffset;
@@ -307,11 +286,8 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
                         EEPROM.commit();
                     }
                 }
-                #ifdef DEBUG
-                    if(setTimeSemiAutoFlag) {
-                        Serial.println("Semi-auto time adjustment started!");
-                    }
-                #endif // DEBUG
+				if(setTimeSemiAutoFlag)	Serial.println("Semi-auto time adjustment started!");
+
                 // Collect NTP time, put it in RTC and stop NTP synchronization.
                 RTC.set(NTP.getLastNTPSync() + timeZoneOffset*60 + dst*60*60);
                 NTP.stop();
@@ -321,10 +297,8 @@ void processSyncEvent(NTPSyncEvent_t ntpEvent) {
         }
 }
 void readParameters() {
-    #ifdef DEBUG
-        Serial.println("---------------------------------------------------------------------------------------------");
-        Serial.println("Reading saved parameters from EEPROM.");
-    #endif
+	Serial.println("---------------------------------------------------------------------------------------------");
+	Serial.println("Reading saved parameters from EEPROM.");
     EEPROM.begin(512);
     int EEaddress = 0;
     EEPROM.get(EEaddress, tzdbKey);
@@ -375,54 +349,46 @@ void readParameters() {
     EEaddress += sizeof(int16_t);
     EEPROM.get(EEaddress, dst);
 
-    #ifdef DEBUG
-        Serial.println("---------------------------------------------------------------------------------------------");
-        Serial.println("Saved API Keys in EEPROM memory: ");
-        if(tzdbKey[0] != '\0')
-            Serial.println("  Timezonedb Key: " + String(tzdbKey));
-        if(stackKey[0] != '\0')
-            Serial.println("  Ipstack Key: " + String(stackKey));
-        if(googleLKey[0] != '\0')
-            Serial.println("  Google Location Key: " + String(googleLKey));
-        if(googleTZkey[0] != '\0')
-            Serial.println("  Google Time Zone Key: " + String(googleTZkey));
-        if(weatherKey[0] != '\0')
-            Serial.println("  OneWeaterMap Key: " + String(weatherKey));
-        if(currencyID >=1 && currencyID <=9999)
-            Serial.println("  Cryptocurrency ID: " + String(currencyID));
-        Serial.printf("  Weather format is (Celsius=1/Fahrenheit=0): %d\n", weatherFormat);
-        Serial.printf("  Time format is (24h=1/12h=0): %d\n", timeFormat);
-        Serial.println("  SSID: " + String(SSID));
-        Serial.println("  Password: " + String(password));
-        Serial.println("  Time displaing enable: " + String(timeEnabled) + ", Date displaing enable: " + String(dateEnabled));
-        Serial.println("  Crypto displaing enable: " + String(cryptoEnabled) + ", Temperature displaing enable: " + String(temperatureEnabled));
-        Serial.println("setTimeManuallyFlag: " + String(setTimeManuallyFlag));
-        Serial.println("setTimeSemiAutoFlag: " + String(setTimeSemiAutoFlag));
-        Serial.println("setTimeAutoFlag: " + String(setTimeAutoFlag));
-        Serial.println("timeZoneOffset: " + String(timeZoneOffset));
-        Serial.println("dst: " + String(dst));
-        Serial.println("---------------------------------------------------------------------------------------------");
-    #endif // DEBUG
+	Serial.println("---------------------------------------------------------------------------------------------");
+	Serial.println("Saved API Keys in EEPROM memory: ");
+	if(tzdbKey[0] != '\0')
+		Serial.println("  Timezonedb Key: " + String(tzdbKey));
+	if(stackKey[0] != '\0')
+		Serial.println("  Ipstack Key: " + String(stackKey));
+	if(googleLKey[0] != '\0')
+		Serial.println("  Google Location Key: " + String(googleLKey));
+	if(googleTZkey[0] != '\0')
+		Serial.println("  Google Time Zone Key: " + String(googleTZkey));
+	if(weatherKey[0] != '\0')
+		Serial.println("  OneWeaterMap Key: " + String(weatherKey));
+	if(currencyID >=1 && currencyID <=9999)
+		Serial.println("  Cryptocurrency ID: " + String(currencyID));
+	Serial.printf("  Weather format is (Celsius=1/Fahrenheit=0): %d\n", weatherFormat);
+	Serial.printf("  Time format is (24h=1/12h=0): %d\n", timeFormat);
+	Serial.println("  SSID: " + String(SSID));
+	Serial.println("  Password: " + String(password));
+	Serial.println("  Time displaing enable: " + String(timeEnabled) + ", Date displaing enable: " + String(dateEnabled));
+	Serial.println("  Crypto displaing enable: " + String(cryptoEnabled) + ", Temperature displaing enable: " + String(temperatureEnabled));
+	Serial.println("setTimeManuallyFlag: " + String(setTimeManuallyFlag));
+	Serial.println("setTimeSemiAutoFlag: " + String(setTimeSemiAutoFlag));
+	Serial.println("setTimeAutoFlag: " + String(setTimeAutoFlag));
+	Serial.println("timeZoneOffset: " + String(timeZoneOffset));
+	Serial.println("dst: " + String(dst));
+	Serial.println("---------------------------------------------------------------------------------------------");
 }
 void updateParameters() {
-    #ifdef DEBUG
-        Serial.println("---------------------------------------------------------------------------------------------");
-        Serial.println("Synchronization of parameters started.");
-    #endif // DEBUG
+	Serial.println("---------------------------------------------------------------------------------------------");
+	Serial.println("Synchronization of parameters started.");
     EEPROM.begin(512); // Number of bytes to allocate for parameters.
     int EEaddress = 0;
     char temp[50];
-    #ifdef DEBUG
-        Serial.println("Comparing entered keys with the saved ones.");
-    #endif // DEBUG
+	Serial.println("Comparing entered keys with the saved ones.");
     strcpy(temp, timezonedbKey.getValue());
     if(strcmp(temp, tzdbKey) && temp[0] != '\0') {   // If the keys are different, old key will be replaced with the new one.
         strcpy(tzdbKey, temp);
         nixieTapAPI.applyKey(tzdbKey, 0);
         EEPROM.put(EEaddress, tzdbKey);
-        #ifdef DEBUG
-            Serial.println("Timezonedb key updated!");
-        #endif // DEBUG
+		Serial.println("Timezonedb key updated!");
     }
     EEaddress += 50;
     strcpy(temp, ipStackKey.getValue());
@@ -430,9 +396,7 @@ void updateParameters() {
         strcpy(stackKey, temp);
         nixieTapAPI.applyKey(stackKey, 1);
         EEPROM.put(EEaddress, stackKey);
-        #ifdef DEBUG
-            Serial.println("Stack key updated!");
-        #endif // DEBUG
+		Serial.println("Stack key updated!");
     }
     EEaddress += 50;
     strcpy(temp, googleLocKey.getValue());
@@ -440,9 +404,7 @@ void updateParameters() {
         strcpy(googleLKey, temp);
         nixieTapAPI.applyKey(googleLKey, 2);
         EEPROM.put(EEaddress, googleLKey);
-        #ifdef DEBUG
-            Serial.println("Google Location key updated!");
-        #endif // DEBUG
+		Serial.println("Google Location key updated!");
     }
     EEaddress += 50;
     strcpy(temp, googleTimeZoneKey.getValue());
@@ -450,37 +412,29 @@ void updateParameters() {
         strcpy(googleTZkey, temp);
         nixieTapAPI.applyKey(googleTZkey, 3);
         EEPROM.put(EEaddress, googleTZkey);
-        #ifdef DEBUG
-            Serial.println("Google Time Zone key updated!");
-        #endif // DEBUG
-    }
+		Serial.println("Google Time Zone key updated!");
+	}
     EEaddress += 50;
     strcpy(temp, openWeatherMapKey.getValue());
     if(strcmp(temp, weatherKey) && temp[0] != '\0') {
         strcpy(weatherKey, temp);
         nixieTapAPI.applyKey(weatherKey, 4);
         EEPROM.put(EEaddress, weatherKey);
-        #ifdef DEBUG
-            Serial.println("OneWeatherMap key updated!");
-        #endif // DEBUG
+		Serial.println("OneWeatherMap key updated!");
     }
     EEaddress += 50;
     strcpy(temp, ssid.getValue());
     if(strcmp(temp, SSID) && temp[0] != '\0') {
         strcpy(SSID, temp);
         EEPROM.put(EEaddress, SSID);
-        #ifdef DEBUG
-            Serial.println("New SSID saved!");
-        #endif // DEBUG
+		Serial.println("New SSID saved!");
     }
     EEaddress += 30;
     strcpy(temp, pass.getValue());
     if(strcmp(temp, password) && temp[0] != '\0') {
         strcpy(password, temp);
         EEPROM.put(EEaddress, password);
-        #ifdef DEBUG
-            Serial.println("New password saved!");
-        #endif // DEBUG
+		Serial.println("New password saved!");
     }
     EEaddress += 30;
     strcpy(WMTimeFormat, formatWM.getValue());
@@ -488,9 +442,7 @@ void updateParameters() {
     if(WMTimeFormat[0] != '\0' && timeFormat != newTimeFormat && (newTimeFormat == 1 || newTimeFormat == 0)) {
         timeFormat = newTimeFormat;
         EEPROM.put(EEaddress, timeFormat);
-        #ifdef DEBUG
-            Serial.println("Time format updated!");
-        #endif // DEBUG
+		Serial.println("Time format updated!");
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMcurrencyID, cryptoID.getValue());
@@ -499,9 +451,7 @@ void updateParameters() {
         cryptoRefreshFlag = 1;
         currencyID = newCurrencyID;
         EEPROM.put(EEaddress, currencyID);
-        #ifdef DEBUG
-            Serial.println("Currency ID updated!");
-        #endif // DEBUG
+		Serial.println("Currency ID updated!");
     }
     EEaddress += sizeof(uint16_t);
     strcpy(WMweatherFormat, openWeatherMapFormat.getValue());
@@ -510,9 +460,7 @@ void updateParameters() {
         weatherRefreshFlag = 1;
         weatherFormat = newWeatherFormat;
         EEPROM.put(EEaddress, weatherFormat);
-        #ifdef DEBUG
-            Serial.println("Weather format updated!");
-        #endif // DEBUG
+		Serial.println("Weather format updated!");
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMtimeEnable, enableTime.getValue());
@@ -520,9 +468,7 @@ void updateParameters() {
     if(WMtimeEnable[0] != '\0' && timeEnabled != newTimeEnable && (newTimeEnable == 1 || newTimeEnable == 0)) {
         timeEnabled = newTimeEnable;
         EEPROM.put(EEaddress, timeEnabled);
-        #ifdef DEBUG
-            Serial.println("Time enable status changed.");
-        #endif // DEBUG
+		Serial.println("Time enable status changed.");
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMdateEnable, enableDate.getValue());
@@ -530,9 +476,7 @@ void updateParameters() {
     if(WMdateEnable[0] != '\0' && dateEnabled != newDateEnable && (newDateEnable == 1 || newDateEnable == 0)) {
         dateEnabled = newDateEnable;
         EEPROM.put(EEaddress, dateEnabled);
-        #ifdef DEBUG
-            Serial.println("Date enable status changed.");
-        #endif // DEBUG
+		Serial.println("Date enable status changed.");
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMcryptoEnable, enableCrypto.getValue());
@@ -540,9 +484,7 @@ void updateParameters() {
     if(WMcryptoEnable[0] != '\0' && cryptoEnabled != newCryptoEnable && (newCryptoEnable == 1 || newCryptoEnable == 0)) {
         cryptoEnabled = newCryptoEnable;
         EEPROM.put(EEaddress, cryptoEnabled);
-        #ifdef DEBUG
-            Serial.println("Crypto enable status changed.");
-        #endif // DEBUG
+		Serial.println("Crypto enable status changed.");
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMtempEnable, enableTemperature.getValue());
@@ -550,9 +492,7 @@ void updateParameters() {
     if(WMtempEnable[0] != '\0' && temperatureEnabled != newTempEnable && (newTempEnable == 1 || newTempEnable == 0)) {
         temperatureEnabled = newTempEnable;
         EEPROM.put(EEaddress, temperatureEnabled);
-        #ifdef DEBUG
-            Serial.println("Temperature enable status changed.");
-        #endif // DEBUG
+		Serial.println("Temperature enable status changed.");
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMsetTimeManuallyFlag, setTimeManually.getValue());
@@ -560,9 +500,7 @@ void updateParameters() {
     if(WMsetTimeManuallyFlag[0] != '\0' && setTimeManuallyFlag != newSetTimeManuallyFlag && (newSetTimeManuallyFlag == 1 || newSetTimeManuallyFlag == 0)) {
         setTimeManuallyFlag = newSetTimeManuallyFlag;
         EEPROM.put(EEaddress, setTimeManuallyFlag);
-        #ifdef DEBUG
-            Serial.println("setTimeManualyFlag status changed to: " + String(WMsetTimeManuallyFlag));
-        #endif // DEBUG
+		Serial.println("setTimeManualyFlag status changed to: " + String(WMsetTimeManuallyFlag));
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMsetTimeSemiAutoFlag, setTimeSemiAuto.getValue());
@@ -570,9 +508,7 @@ void updateParameters() {
     if(WMsetTimeSemiAutoFlag[0] != '\0' && setTimeSemiAutoFlag != newSetTimeSemiAutoFlag && (newSetTimeSemiAutoFlag == 1 || newSetTimeSemiAutoFlag == 0)) {
         setTimeSemiAutoFlag = newSetTimeSemiAutoFlag;
         EEPROM.put(EEaddress, setTimeSemiAutoFlag);
-        #ifdef DEBUG
-            Serial.println("setSemiAutoFlag status changed to: " + String(WMsetTimeSemiAutoFlag));
-        #endif // DEBUG
+		Serial.println("setSemiAutoFlag status changed to: " + String(WMsetTimeSemiAutoFlag));
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMsetTimeAutoFlag, setTimeAuto.getValue());
@@ -580,9 +516,7 @@ void updateParameters() {
     if(WMsetTimeAutoFlag[0] != '\0' && setTimeAutoFlag != newSetTimeAutoFlag && (newSetTimeAutoFlag == 1 || newSetTimeAutoFlag == 0)) {
         setTimeAutoFlag = newSetTimeAutoFlag;
         EEPROM.put(EEaddress, setTimeAutoFlag);
-        #ifdef DEBUG
-            Serial.println("setTimeAutoFlag status changed to: " + String(WMsetTimeAutoFlag));
-        #endif // DEBUG
+		Serial.println("setTimeAutoFlag status changed to: " + String(WMsetTimeAutoFlag));
     }
     EEaddress += sizeof(uint8_t);
     strcpy(WMTimeZoneOffset, timeZoneOffsetWM.getValue());
@@ -590,9 +524,7 @@ void updateParameters() {
     if(WMTimeZoneOffset[0] != '\0' && timeZoneOffset != newTimeZoneOffset && (newTimeZoneOffset/60) <= 14 && (newTimeZoneOffset/60) >= -12) {
         timeZoneOffset = newTimeZoneOffset;
         EEPROM.put(EEaddress, timeZoneOffset);
-        #ifdef DEBUG
-            Serial.println("timeZoneOffset changed to: " + String(timeZoneOffset));
-        #endif // DEBUG
+		Serial.println("timeZoneOffset changed to: " + String(timeZoneOffset));
     }
     EEaddress += sizeof(int16_t);
     strcpy(WMdst, dstWM.getValue());
@@ -600,9 +532,7 @@ void updateParameters() {
     if(WMdst[0] != '\0' && dst != newdst && (newdst == 1 || newdst == 0)) {
         dst = newdst;
         EEPROM.put(EEaddress, dst);
-        #ifdef DEBUG
-            Serial.println("dst status changed to: " + String(dst));
-        #endif // DEBUG
+		Serial.println("dst status changed to: " + String(dst));
     }
     EEPROM.commit();
     
@@ -614,9 +544,7 @@ void updateParameters() {
         temperatureRefresh.attach(3600, weatherRefresh);
     } else
         temperatureRefresh.detach();
-    #ifdef DEBUG
-        Serial.println("Synchronization of parameters completed!");
-    #endif // DEBUG
+	Serial.println("Synchronization of parameters completed!");
 }
 
 void updateTime() {
@@ -658,13 +586,9 @@ void updateTime() {
                 t = now();
                 RTC.set(t);
                 setSyncProvider(RTC.get);
-                #ifdef DEBUG
-                    Serial.println("Manually entered date and time saved!");
-                #endif // DEBUG
+				Serial.println("Manually entered date and time saved!");
             } else {
-                #ifdef DEBUG
-                    Serial.println("Incorect date and time parameters, please try again!");
-                #endif // DEBUG
+				Serial.println("Incorect date and time parameters, please try again!");
             }
         }
     } else if((setTimeSemiAutoFlag || setTimeAutoFlag) && (WiFi.status() == WL_CONNECTED)) {
@@ -757,6 +681,8 @@ void resetEepromToDefault() {
 	EEPROM.put(250, "NixieTap");
 	// Hotspot password
 	EEPROM.put(280, "NixieTap");
+	// Set time format to 24h
+	EEPROM.put(310, 1);
 	// Enable time
     EEPROM.put(334, 1);
 	// Enable date
@@ -784,21 +710,9 @@ void readButton() {
 		buttonCounter++;
 		if (buttonCounter==5) {
 			buttonCounter=0;
-			if (!buttonPressed) { 
-				state++; 
-				buttonPressed = true;
-			}
-			if (buttonPressed) {
-				buttonPressedCounter++;
-				if(buttonPressedCounter==4000) {
-					buttonPressedCounter=0;
-					startPortalManually();
-				}
-			}				
+			startPortalManually();
 		}	    
-	
     }
-	else buttonPressed=false;
 }
 
 
