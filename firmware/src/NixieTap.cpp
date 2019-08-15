@@ -681,7 +681,6 @@ void readAndParseSerial() {
 
 
 void resetEepromToDefault() {
-	char temp;
 // TODO: convert this to a memory map!
 // most addresses are inaccurate
 	EEPROM.begin(512);
