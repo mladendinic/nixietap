@@ -98,6 +98,9 @@ void setup() {
     // Touch button interrupt.
     attachInterrupt(digitalPinToInterrupt(TOUCH_BUTTON), tuchButtonPressed, RISING);
 
+
+	delay(5000);
+
     // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
     // Adding parameters to Settings window in WiFiManager AP.
     wifiManager.addParameter(&text0);
@@ -323,7 +326,7 @@ void readParameters() {
     if(weatherKey[0] != '\0')
         nixieTapAPI.applyKey(weatherKey, 4);
     EEaddress += 50;
-    EEPROM.get(EEaddress, SSID);
+	EEPROM.get(EEaddress, SSID);
     EEaddress += 30;
     EEPROM.get(EEaddress, password);
     EEaddress += 30;
@@ -678,6 +681,9 @@ void readAndParseSerial() {
 
 
 void resetEepromToDefault() {
+	char temp;
+// TODO: convert this to a memory map!
+// most addresses are inaccurate
 	EEPROM.begin(512);
 	// Hotspot SSID
 	EEPROM.put(250, "NixieTap");
@@ -690,9 +696,9 @@ void resetEepromToDefault() {
 	// Enable date
     EEPROM.put(342, 1);
 	// Enable crypto
-    EEPROM.put(350, 0);
+    EEPROM.put(316, 0);
 	// Enable temperature
-    EEPROM.put(358, 0);
+    EEPROM.put(317, 0);
 	// Enable manual mode
     EEPROM.put(366, 0);
 	// Enable semi-auto mode
