@@ -14,7 +14,7 @@ ICACHE_RAM_ATTR void scrollDots();          // Interrupt function for scrolling 
 void processSyncEvent(NTPSyncEvent_t ntpEvent);
 void enableSecDot();
 void disableSecDot();
-void startPortalManually();    // Manually launch the WiFiMenager portal.
+void startPortalManually();    
 void updateParameters();
 void readParameters();
 void cryptoRefresh();
@@ -23,6 +23,7 @@ void updateTime();
 void readAndParseSerial();
 void resetEepromToDefault(); 
 void readButton();
+void firstRunInit();
 
 volatile bool dot_state = LOW;
 bool stopDef = false, secDotDef = false;
@@ -142,6 +143,7 @@ void setup() {
 
 	nixieTap.write(10,10,10,10,0b110); // progress bar 50%
 
+	firstRunInit();	
     readParameters();           // Reed all stored parameters from EEPROM.
 
 	nixieTap.write(10,10,10,10,0b1110); // progress bar 75%
@@ -701,6 +703,8 @@ void resetEepromToDefault() {
     EEPROM.put(398, 0);
 	// Time zone offset
     EEPROM.put(414, 120);
+	// Set initialization flag to 0 
+    EEPROM.put(500, 0);
     EEPROM.commit();
 }
 
@@ -716,4 +720,14 @@ void readButton() {
 }
 
 
-
+void firstRunInit() {
+	bool notInitialized=1;
+	EEPROM.begin(512);
+    EEPROM.get(500, notInitialized);
+	if(notInitialized) {
+		Serial.println("------------------------------------------");
+		Serial.println("Performing first run initialization...");
+		Serial.println("------------------------------------------");
+		resetEepromToDefault();
+	}
+}
