@@ -59,7 +59,10 @@ uint8_t Nixie::checkDate(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm
  *  @param dots dot values, encoded in binary;                              *
  *  (H1, H0, M1, M0) = (0b10, 0b100, 0b1000, 0b10000)                       *
  *                                                                          */
-void Nixie::write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots)
+
+
+
+void Nixie::writeLowLevel(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots)
 {
     uint8_t part1, part2, part3, part4, part5, part6;
     // Display has 4 x 10 positions total, and SPI transfers 8 bits at the time.
@@ -83,10 +86,15 @@ void Nixie::write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4
     digitalWrite(SPI_CS, HIGH);
     SPI.endTransaction();
 }
+
+
+
+
 /*                                                         *
  * With this function, time is displayed on a nixie tubes. *
  *                                                         */
 void Nixie::writeTime(time_t local, bool dot_state, bool timeFormat) {   
+	antiPoison(local);
     if(timeFormat) {
         write(hour(local)/10, hour(local)%10, minute(local)/10, minute(local)%10, dot_state*0b1000);
     } else {
@@ -192,6 +200,175 @@ void Nixie::writeNumber(String newNumber, unsigned int movingSpeed) {
         }
     }
     if(k >= (numberSize - 4)) k = 0;
+}
+
+void Nixie::antiPoison(time_t local) {
+
+	uint8_t stopH1=0, stopH0=0, stopM1=0, stopM0=0;
+	uint8_t H1=0, H0=0, M1=0, M0=0;
+	bool foundH1=false, foundH0=false, foundM1=false, foundM0=false;
+	uint8_t indexH1=0, indexH0=0, indexM1=0, indexM0=0;
+	stopM1 = minute(local)/10;
+	stopM0 = minute(local)%10;
+	stopH1 = hour(local)/10;
+	stopH0 = hour(local)%10;
+
+	for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == stopM1) indexM1 = i;
+	for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == stopM0) indexM0 = i;
+	for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == stopH1) indexH1 = i;
+	for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == stopH0) indexH0 = i;
+
+	if(stopM0 != autoPoisonDoneOnMinute) {
+	autoPoisonDoneOnMinute = stopM0;			
+
+		for(uint8_t slotCount=0; slotCount<4; slotCount++) {
+
+			for(uint8_t j=0; j<10; j++) {
+				
+				if (!foundM0) {
+					if((j+indexM0) > 9) M0 = orderedDigits[j+indexM0-10];
+					else M0 = orderedDigits[j+indexM0];
+				}
+				if (!foundM1) {
+					if((j+indexM1) > 9) M1 = orderedDigits[j+indexM1-10];
+					else M1 = orderedDigits[j+indexM1];
+				}
+				if (!foundH0) {
+					if((j+indexH0) > 9) H0 = orderedDigits[j+indexH0-10];
+					else H0 = orderedDigits[j+indexH0];
+				}
+				if (!foundH1) {
+					if((j+indexH1) > 9) H1 = orderedDigits[j+indexH1-10];
+					else H1 = orderedDigits[j+indexH1];
+				}
+
+				write(H1,H0,M1,M0,0b11110);
+				delay(25);
+			}
+
+			for(uint8_t j=10; j>0; j--) {
+				if (!foundM0) M0 = orderedDigits[j-1];
+				if((slotCount==0) && (M0 == stopM0)) foundM0 = true;
+
+				if (!foundM1) M1 = orderedDigits[j-1];
+				if((slotCount==1) && (M1 == stopM1)) foundM1 = true;
+
+				if (!foundH0) H0 = orderedDigits[j-1];
+				if((slotCount==2) && (H0 == stopH0)) foundH0 = true;
+
+				if (!foundH1) H1 = orderedDigits[j-1];
+				if((slotCount==3) && (H1 == stopH1)) foundH1 = true;
+
+				write(H1,H0,M1,M0,0b11110);
+				delay(25);
+			}
+
+		}
+//
+//		for(uint8_t slotCount=0; slotCount<4; slotCount++) {
+//
+//			for(uint8_t j=0; j<10; j++) {
+//				
+//				if (!foundM0) {
+//					if((j+indexM0) > 9) M0 = orderedDigits[j+indexM0-10];
+//					else M0 = orderedDigits[j+indexM0];
+//				}
+//				if (!foundM1) {
+//					if((j+indexM1) > 9) M1 = orderedDigits[j+indexM1-10];
+//					else M1 = orderedDigits[j+indexM1];
+//				}
+//				if (!foundH0) {
+//					if((j+indexH0) > 9) H0 = orderedDigits[j+indexH0-10];
+//					else H0 = orderedDigits[j+indexH0];
+//				}
+//				if (!foundH1) {
+//					if((j+indexH1) > 9) H1 = orderedDigits[j+indexH1-10];
+//					else H1 = orderedDigits[j+indexH1];
+//				}
+//
+//				if (slotCount==0) write(stopH1,stopH0,stopM1,M0,0b10000);
+//				if (slotCount==1) write(stopH1,stopH0,M1,stopM0,0b01000);
+//				if (slotCount==2) write(stopH1,H0,stopM1,stopM0,0b00100);
+//				if (slotCount==3) write(H1,stopH0,stopM1,stopM0,0b00010);
+//				delay(25);
+//			}
+//
+//			for(uint8_t j=10; j>0; j--) {
+//				if (!foundM0) M0 = orderedDigits[j-1];
+//				if((slotCount==0) && (M0 == stopM0)) foundM0 = true;
+//
+//				if (!foundM1) M1 = orderedDigits[j-1];
+//				if((slotCount==1) && (M1 == stopM1)) foundM1 = true;
+//
+//				if (!foundH0) H0 = orderedDigits[j-1];
+//				if((slotCount==2) && (H0 == stopH0)) foundH0 = true;
+//
+//				if (!foundH1) H1 = orderedDigits[j-1];
+//				if((slotCount==3) && (H1 == stopH1)) foundH1 = true;
+//
+//				if (slotCount==0) write(stopH1,stopH0,stopM1,M0,0b10000);
+//				if (slotCount==1) write(stopH1,stopH0,M1,stopM0,0b01000);
+//				if (slotCount==2) write(stopH1,H0,stopM1,stopM0,0b00100);
+//				if (slotCount==3) write(H1,stopH0,stopM1,stopM0,0b00010);
+//				delay(25);
+//			}
+//
+//		}
+	}
+}
+
+void Nixie::setAnimation(bool animate) {
+	animate = animate;
+}
+
+void Nixie::write(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots)
+{
+	uint8_t H1=0, H0=0, M1=0, M0=0;
+	bool foundH1=false, foundH0=false, foundM1=false, foundM0=false;
+	uint8_t indexH1=0, indexH0=0, indexM1=0, indexM0=0;
+
+	if(animate) {
+		animate=false;
+		Serial.println("animiramo");
+		for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == oldDigit4) indexM1 = i;
+		for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == oldDigit3) indexM0 = i;
+		for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == oldDigit2) indexH1 = i;
+		for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == oldDigit1) indexH0 = i;
+
+		for(uint8_t j=0; j<10; j++) {
+			
+			if (!foundM0) {
+				if((j+indexM0) > 9) M0 = orderedDigits[j+indexM0-10];
+				else M0 = orderedDigits[j+indexM0];
+				if (M0 == digit4) {foundM0=true; continue;}
+			}
+			if (!foundM1) {
+				if((j+indexM1) > 9) M1 = orderedDigits[j+indexM1-10];
+				else M1 = orderedDigits[j+indexM1];
+				if (M1 == digit3) {foundM1=true; continue;}
+			}
+			if (!foundH0) {
+				if((j+indexH0) > 9) H0 = orderedDigits[j+indexH0-10];
+				else H0 = orderedDigits[j+indexH0];
+				if (H0 == digit2) {foundH0=true; continue;}
+			}
+			if (!foundH1) {
+				if((j+indexH1) > 9) H1 = orderedDigits[j+indexH1-10];
+				else H1 = orderedDigits[j+indexH1];
+				if (H1 == digit1) {foundH1=true; continue;}
+			}
+
+			write(H1,H0,M1,M0,0b11110);
+			delay(25);
+			}
+
+		oldDigit1 = digit1;
+		oldDigit2 = digit2;
+		oldDigit3 = digit3;
+		oldDigit4 = digit4;
+	}
+	else writeLowLevel(digit1, digit2, digit3, digit4, dots);
+
 }
 
 Nixie nixieTap = Nixie();

@@ -38,6 +38,10 @@ class Nixie {
     uint8_t numberArray[100], numIsNeg;
     int dotPos, numberSize, k = 0;
     unsigned long previousMillis = 0;
+    uint8_t orderedDigits[10] = {1,6,2,7,5,0,4,9,8,3};
+	uint8_t autoPoisonDoneOnMinute = 0;
+	uint8_t oldDigit1, oldDigit2, oldDigit3, oldDigit4;
+	bool animate = false;
 
 public:
     Nixie();
@@ -47,8 +51,11 @@ public:
     void writeTime(time_t local, bool dot_state, bool timeFormat);
     void writeDate(time_t local, bool dot_state);
     uint8_t checkDate(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm);
+	void antiPoison(time_t local);
+	void setAnimation(bool animate);
+private:
+    void writeLowLevel(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots);
+
 };
-
-extern Nixie nixieTap;
-
+	extern Nixie nixieTap;
 #endif // _NIXIE_h

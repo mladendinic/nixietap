@@ -646,6 +646,7 @@ void irq_1Hz_int() {
  *                                                                */
 void tuchButtonPressed() {
     state++;
+	nixieTap.setAnimation(true);
 }
 void cryptoRefresh() {
     cryptoRefreshFlag = 1;
