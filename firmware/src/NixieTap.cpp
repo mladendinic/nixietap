@@ -25,6 +25,7 @@ void resetEepromToDefault();
 void readButton();
 void firstRunInit();
 
+uint8_t fwVersion = 1.0;
 volatile bool dot_state = LOW;
 bool stopDef = false, secDotDef = false;
 bool wifiFirstConnected = true;
@@ -99,7 +100,12 @@ void setup() {
     attachInterrupt(digitalPinToInterrupt(TOUCH_BUTTON), tuchButtonPressed, RISING);
 
 
-	delay(5000);
+    if(digitalRead(CONFIG_BUTTON)) {
+		delay(5000);
+		Serial.println("NIXIE TAP");
+		Serial.print("Firmware version: ");
+		Serial.println(fwVersion);
+	}
 
     // WiFiManager. For configuring WiFi access point, setting up the NixieTap parameters and so on...
     // Adding parameters to Settings window in WiFiManager AP.

@@ -221,50 +221,6 @@ void Nixie::antiPoison(time_t local) {
 	if(stopM0 != autoPoisonDoneOnMinute) {
 	autoPoisonDoneOnMinute = stopM0;			
 
-		for(uint8_t slotCount=0; slotCount<4; slotCount++) {
-
-			for(uint8_t j=0; j<10; j++) {
-				
-				if (!foundM0) {
-					if((j+indexM0) > 9) M0 = orderedDigits[j+indexM0-10];
-					else M0 = orderedDigits[j+indexM0];
-				}
-				if (!foundM1) {
-					if((j+indexM1) > 9) M1 = orderedDigits[j+indexM1-10];
-					else M1 = orderedDigits[j+indexM1];
-				}
-				if (!foundH0) {
-					if((j+indexH0) > 9) H0 = orderedDigits[j+indexH0-10];
-					else H0 = orderedDigits[j+indexH0];
-				}
-				if (!foundH1) {
-					if((j+indexH1) > 9) H1 = orderedDigits[j+indexH1-10];
-					else H1 = orderedDigits[j+indexH1];
-				}
-
-				write(H1,H0,M1,M0,0b11110);
-				delay(25);
-			}
-
-			for(uint8_t j=10; j>0; j--) {
-				if (!foundM0) M0 = orderedDigits[j-1];
-				if((slotCount==0) && (M0 == stopM0)) foundM0 = true;
-
-				if (!foundM1) M1 = orderedDigits[j-1];
-				if((slotCount==1) && (M1 == stopM1)) foundM1 = true;
-
-				if (!foundH0) H0 = orderedDigits[j-1];
-				if((slotCount==2) && (H0 == stopH0)) foundH0 = true;
-
-				if (!foundH1) H1 = orderedDigits[j-1];
-				if((slotCount==3) && (H1 == stopH1)) foundH1 = true;
-
-				write(H1,H0,M1,M0,0b11110);
-				delay(25);
-			}
-
-		}
-//
 //		for(uint8_t slotCount=0; slotCount<4; slotCount++) {
 //
 //			for(uint8_t j=0; j<10; j++) {
@@ -286,10 +242,7 @@ void Nixie::antiPoison(time_t local) {
 //					else H1 = orderedDigits[j+indexH1];
 //				}
 //
-//				if (slotCount==0) write(stopH1,stopH0,stopM1,M0,0b10000);
-//				if (slotCount==1) write(stopH1,stopH0,M1,stopM0,0b01000);
-//				if (slotCount==2) write(stopH1,H0,stopM1,stopM0,0b00100);
-//				if (slotCount==3) write(H1,stopH0,stopM1,stopM0,0b00010);
+//				write(H1,H0,M1,M0,0b11110);
 //				delay(25);
 //			}
 //
@@ -306,14 +259,62 @@ void Nixie::antiPoison(time_t local) {
 //				if (!foundH1) H1 = orderedDigits[j-1];
 //				if((slotCount==3) && (H1 == stopH1)) foundH1 = true;
 //
-//				if (slotCount==0) write(stopH1,stopH0,stopM1,M0,0b10000);
-//				if (slotCount==1) write(stopH1,stopH0,M1,stopM0,0b01000);
-//				if (slotCount==2) write(stopH1,H0,stopM1,stopM0,0b00100);
-//				if (slotCount==3) write(H1,stopH0,stopM1,stopM0,0b00010);
+//				write(H1,H0,M1,M0,0b11110);
 //				delay(25);
 //			}
-//
+
 //		}
+
+		for(uint8_t slotCount=0; slotCount<4; slotCount++) {
+
+			for(uint8_t j=0; j<10; j++) {
+				
+				if (!foundM0) {
+					if((j+indexM0) > 9) M0 = orderedDigits[j+indexM0-10];
+					else M0 = orderedDigits[j+indexM0];
+				}
+				if (!foundM1) {
+					if((j+indexM1) > 9) M1 = orderedDigits[j+indexM1-10];
+					else M1 = orderedDigits[j+indexM1];
+				}
+				if (!foundH0) {
+					if((j+indexH0) > 9) H0 = orderedDigits[j+indexH0-10];
+					else H0 = orderedDigits[j+indexH0];
+				}
+				if (!foundH1) {
+					if((j+indexH1) > 9) H1 = orderedDigits[j+indexH1-10];
+					else H1 = orderedDigits[j+indexH1];
+				}
+
+				delay(25);
+
+				if (slotCount==0) write(stopH1,stopH0,stopM1,M0,0b10000);
+				if (slotCount==1) write(stopH1,stopH0,M1,stopM0,0b01000);
+				if (slotCount==2) write(stopH1,H0,stopM1,stopM0,0b00100);
+				if (slotCount==3) write(H1,stopH0,stopM1,stopM0,0b00010);
+			}
+
+			for(uint8_t j=10; j>0; j--) {
+				if (!foundM0) M0 = orderedDigits[j-1];
+				if((slotCount==0) && (M0 == stopM0)) foundM0 = true;
+
+				if (!foundM1) M1 = orderedDigits[j-1];
+				if((slotCount==1) && (M1 == stopM1)) foundM1 = true;
+
+				if (!foundH0) H0 = orderedDigits[j-1];
+				if((slotCount==2) && (H0 == stopH0)) foundH0 = true;
+
+				if (!foundH1) H1 = orderedDigits[j-1];
+				if((slotCount==3) && (H1 == stopH1)) foundH1 = true;
+
+				if (slotCount==0) write(stopH1,stopH0,stopM1,M0,0b10000);
+				if (slotCount==1) write(stopH1,stopH0,M1,stopM0,0b01000);
+				if (slotCount==2) write(stopH1,H0,stopM1,stopM0,0b00100);
+				if (slotCount==3) write(H1,stopH0,stopM1,stopM0,0b00010);
+				delay(25);
+			}
+
+		}
 	}
 }
 
