@@ -51,7 +51,7 @@ public:
     void writeTime(time_t local, bool dot_state, bool timeFormat);
     void writeDate(time_t local, bool dot_state);
     uint8_t checkDate(uint16_t y, uint8_t m, uint8_t d, uint8_t h, uint8_t mm);
-	void antiPoison(time_t local);
+	void antiPoison(time_t local, bool timeFormat);
 	void setAnimation(bool animate);
 private:
     void writeLowLevel(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_t digit4, uint8_t dots);
