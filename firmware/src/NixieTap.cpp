@@ -88,7 +88,7 @@ WiFiManagerParameter text10("<h1><center>Select displaying mode</center></h1>");
 WiFiManagerParameter enableTime("timeEnable", "Enable time display: ", WMtimeEnable, 2);
 WiFiManagerParameter enableDate("dateEnable", "Enable date display: ", WMdateEnable, 2);
 WiFiManagerParameter enableCrypto("cryptoEnable", "Enable crypto display: ", WMcryptoEnable, 2);
-WiFiManagerParameter enableTemperature("temperatureEnable", "Enable temerature display: ", WMtempEnable, 2);
+WiFiManagerParameter enableTemperature("temperatureEnable", "Enable temperature display: ", WMtempEnable, 2);
 
 void setup() {
 
