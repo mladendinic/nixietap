@@ -11,6 +11,6 @@ To build the latest hardware, use the files from the hardware folder, buy the pa
 
 To build the latest firmware, open the 'firmware' repo in VS Code / Github Atom with PlatformIO, and download it to the ESP from there.
 
-If you want to buy the finished device, or bare PCBs, there will be a Crowdsupply campaign, look [here](https://www.crowdsupply.com/mladen-dinic/nixie-tap).
+There is also a website with more details, here: https://mladendinic.com/nixietap/
 
 Have a nice day!
