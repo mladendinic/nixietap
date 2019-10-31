@@ -94,7 +94,7 @@ void Nixie::writeLowLevel(uint8_t digit1, uint8_t digit2, uint8_t digit3, uint8_
  * With this function, time is displayed on a nixie tubes. *
  *                                                         */
 void Nixie::writeTime(time_t local, bool dot_state, bool timeFormat) {   
-	antiPoison(local);
+	antiPoison(local, timeFormat);
     if(timeFormat) {
         write(hour(local)/10, hour(local)%10, minute(local)/10, minute(local)%10, dot_state*0b1000);
     } else {
@@ -202,7 +202,7 @@ void Nixie::writeNumber(String newNumber, unsigned int movingSpeed) {
     if(k >= (numberSize - 4)) k = 0;
 }
 
-void Nixie::antiPoison(time_t local) {
+void Nixie::antiPoison(time_t local, bool timeFormat) {
 
 	uint8_t stopH1=0, stopH0=0, stopM1=0, stopM0=0;
 	uint8_t H1=0, H0=0, M1=0, M0=0;
@@ -210,8 +210,14 @@ void Nixie::antiPoison(time_t local) {
 	uint8_t indexH1=0, indexH0=0, indexM1=0, indexM0=0;
 	stopM1 = minute(local)/10;
 	stopM0 = minute(local)%10;
-	stopH1 = hour(local)/10;
-	stopH0 = hour(local)%10;
+
+	if (timeFormat) {
+		stopH1 = hour(local)/10;
+		stopH0 = hour(local)%10;
+	} else {
+		stopH1 = hourFormat12(local)/10;
+		stopH0 = hourFormat12(local)%10;
+	}
 
 	for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == stopM1) indexM1 = i;
 	for(uint8_t i=0; i<10; i++) if(orderedDigits[i] == stopM0) indexM0 = i;

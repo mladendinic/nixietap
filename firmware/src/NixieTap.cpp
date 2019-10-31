@@ -72,6 +72,7 @@ char crypto_id[30];
 
 std::map<String, int> mem_map;
 
+
 void setup() {
     mem_map["SSID"] = 0;
     mem_map["password"] = 50;
@@ -599,8 +600,6 @@ void readAndParseSerial() {
 
 
 void resetEepromToDefault() {
-// TODO: convert this to a memory map!
-// most addresses are inaccurate
 	EEPROM.begin(512);
     int EEaddress = mem_map["SSID"];
     EEPROM.put(EEaddress, "NixieTap");
@@ -631,6 +630,8 @@ void resetEepromToDefault() {
     EEaddress = mem_map["enable_crypto"];
     EEPROM.put(EEaddress, 0);
     EEaddress = mem_map["enable_dst"];
+    EEPROM.put(EEaddress, 0);
+    EEaddress = mem_map["enable_24h"];
     EEPROM.put(EEaddress, 0);
     EEaddress = mem_map["offset"];
     EEPROM.put(EEaddress, 0);
