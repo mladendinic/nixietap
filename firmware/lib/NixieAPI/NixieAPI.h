@@ -25,7 +25,7 @@ class NixieAPI {
     String openWeaterMapKey = "0"; // // You can get your key here: https://openweathermap.org/api
     const uint8_t googleTimeZoneCrt[20] = {0x5A, 0xCF, 0xFE, 0xF0, 0xF1, 0xA6, 0xF4, 0x5F, 0xD2, 0x11, 0x11, 0xC6, 0x1D, 0x2F, 0x0E, 0xBC, 0x39, 0x8D, 0x50, 0xE0}; // Https fingerprint certification. Details at: https://github.com/esp8266/Arduino/blob/master/doc/esp8266wifi/client-secure-examples.rst
     const uint8_t cryptoPriceCrt[20] =  {0x5A, 0xCF, 0xFE, 0xF0, 0xF1, 0xA6, 0xF4, 0x5F, 0xD2, 0x11, 0x11, 0xC6, 0x1D, 0x2F, 0x0E, 0xBC, 0x39, 0x8D, 0x50, 0xE0};  // Use web browser to view and copy, SHA1 fingerprint of the certificate
-    
+    const char * crypto_cert = "89:4A:D4:77:06:AE:58:86:EC:81:FE:C3:76:42:FB:8C:E4:96:75:5D";
     String location; // This allows us to save our location so that we can reuse it in the code, without the need to requesting it again from the server.
     String ip;
     unsigned long int prevObtainedIpTime;
@@ -37,7 +37,7 @@ public:
 
     String getPublicIP();
     
-    String getCryptoPrice(uint16_t currencyID);
+    String getCryptoPrice(char * crypto_key, char * currencyID);
     String getTempAtMyLocation(String location, uint8_t format);
     
     String getLocFromIpstack(String publicIP);

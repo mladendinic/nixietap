@@ -1,4 +1,5 @@
 #include "NixieAPI.h"
+#include <WiFiClientSecure.h>
 
 NixieAPI::NixieAPI() {
 }
@@ -34,7 +35,7 @@ void NixieAPI::applyKey(String key, uint8_t selectAPI) {
         case 4 : 
                 openWeaterMapKey = key;
                 #ifdef DEBUG
-                    Serial.println("applyKey successful, PpenWeaterMap key is:  " + openWeaterMapKey);
+                    Serial.println("applyKey successful, OpenWeaterMap key is:  " + openWeaterMapKey);
                 #endif // DEBUG
                 break;
         default: 
@@ -685,19 +686,19 @@ int NixieAPI::getTimezoneOffset(time_t now, uint8_t *dst) {
  *  Should be limited to 30 requests per minute.                    *
  *  https://coinmarketcap.com/api/#endpoint_listings                *
  *                                                                  */
-String NixieAPI::getCryptoPrice(uint16_t currencyID) {
+String NixieAPI::getCryptoPrice(char * crypto_key, char * currencyID) {
     std::unique_ptr<BearSSL::WiFiClientSecure>client(new BearSSL::WiFiClientSecure);
-    client->setFingerprint(cryptoPriceCrt);
+    client->setFingerprint(crypto_cert);
     HTTPClient https;
-    String URL = "https://api.coinmarketcap.com/v2/ticker/" + String(currencyID) + "/";
+    String URL = "http://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?CMC_PRO_API_KEY="+(String)crypto_key+"&id="+(String)currencyID;
     String payload, price, cryptoName;
     #ifdef DEBUG
         Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Requesting price of a selected currency from: " + URL);
     #endif // DEBUG
     //http.setInsecure();   // https://github.com/esp8266/Arduino/pull/2821
-    https.setUserAgent(UserAgent);
-    if(!https.begin(*client, URL)) {
+    if (!https.begin(*client, URL))
+    {
         #ifdef DEBUG
             Serial.println(F("CMC failed to connect!"));
         #endif // DEBUG
@@ -751,8 +752,7 @@ String NixieAPI::getTempAtMyLocation(String location, uint8_t format) {
     HTTPClient http;
     String payload, temperature;
     String formatType = (format == 1) ? "metric" : "imperial";
-    location.replace(",", "&lon="); // This API request this format of coordinates: &lat=45.0&lng=19.0
-    String URL = "http://api.openweathermap.org/data/2.5/weather?lat=" + location + "&units=" + formatType + "&APPID=" + openWeaterMapKey;
+    String URL = "http://api.openweathermap.org/data/2.5/weather?id=" + location + "&units=" + formatType + "&APPID=" + openWeaterMapKey;
     #ifdef DEBUG
         Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Requesting temperature for my location from: " + URL);
