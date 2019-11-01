@@ -167,7 +167,7 @@ void loop() {
         if (now() - last_crypto >= 60){
             cryptoRefreshFlag = 1;
         }
-        nixieTap.writeNumber(cryptoCurrencyPrice, 350);
+        nixieTap.writeNumber(cryptoCurrencyPrice, 250);
 	}
 	else if(!enable_crypto && state == 2) state++;
 	
@@ -604,7 +604,7 @@ void resetEepromToDefault() {
     int EEaddress = mem_map["SSID"];
     EEPROM.put(EEaddress, "NixieTap");
     EEaddress = mem_map["password"];
-    EEPROM.put(EEaddress, "nixietap");
+    EEPROM.put(EEaddress, "NixieTap");
     EEaddress = mem_map["target_ssid"];
     EEPROM.put(EEaddress, "");
     EEaddress = mem_map["target_pw"];
