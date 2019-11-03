@@ -91,6 +91,7 @@ void setup() {
     mem_map["enable_dst"] = 386;
     mem_map["enable_24h"] = 387;
     mem_map["offset"] = 388;
+    mem_map["non_init"] = 500;
     // This line prevents the ESP from making spurious WiFi networks (ESP_XXXXX)
 	WiFi.mode(WIFI_STA);
 	nixieTap.write(10,10,10,10,0b10); // progress bar 25%
@@ -108,7 +109,7 @@ void setup() {
 
 	nixieTap.write(10,10,10,10,0b110); // progress bar 50%
 
-	firstRunInit();	
+	firstRunInit(); 
     readParameters();           // Read all stored parameters from EEPROM.
 
 	nixieTap.write(10,10,10,10,0b1110); // progress bar 75%
@@ -248,38 +249,55 @@ void readParameters() {
 	Serial.println("Reading saved parameters from EEPROM.");
     int EEaddress = mem_map["SSID"];
     EEPROM.get(EEaddress, SSID);
+    Serial.println("SSID IS:"+(String)SSID);
     EEaddress = mem_map["password"];
     EEPROM.get(EEaddress, password);
+    Serial.println("PW IS:" + (String)password);
     EEaddress = mem_map["target_ssid"];
     EEPROM.get(EEaddress, target_SSID);
+    Serial.println("Target SSID IS:" + (String)target_SSID);
     EEaddress = mem_map["target_pw"];
     EEPROM.get(EEaddress, target_pw);
+    Serial.println("Target PW IS:" + (String)target_pw);
     EEaddress = mem_map["weather_key"];
     EEPROM.get(EEaddress, weather_key);
+    Serial.println("WEATHER KEY IS:" + (String)weather_key);
     EEaddress = mem_map["weather_id"];
     EEPROM.get(EEaddress, weather_id);
+    Serial.println("WEATHER ID IS:" + (String)weather_id);
     EEaddress = mem_map["weather_format"];
     EEPROM.get(EEaddress, weather_format);
+    Serial.println("WEATHER FORMAT IS:" + (String)weather_format);
     EEaddress = mem_map["crypto_key"];
     EEPROM.get(EEaddress, crypto_key);
+    Serial.println("CRYPTO KEY IS:" + (String)crypto_key);
     EEaddress = mem_map["crypto_id"];
     EEPROM.get(EEaddress, crypto_id);
+    Serial.println("CRYPTO ID IS:" + (String)crypto_id);
     EEaddress = mem_map["manual_time_flag"];
     EEPROM.get(EEaddress, manual_time_flag);
+    Serial.println("MANUAL TIME FLAG IS:" + (String)manual_time_flag);
     EEaddress = mem_map["enable_date"];
     EEPROM.get(EEaddress, enable_date);
+    Serial.println("ENABLE DATE IS:" + (String)enable_date);
     EEaddress = mem_map["enable_time"];
     EEPROM.get(EEaddress, enable_time);
+    Serial.println("ENABLE TIME IS:" + (String)enable_time);
     EEaddress = mem_map["enable_24h"];
     EEPROM.get(EEaddress, enable_24h);
+    Serial.println("24H IS:" + (String)enable_24h);
     EEaddress = mem_map["enable_temp"];
     EEPROM.get(EEaddress, enable_temp);
+    Serial.println("ENABLE TEMP IS:" + (String)enable_temp);
     EEaddress = mem_map["enable_crypto"];
     EEPROM.get(EEaddress, enable_crypto);
+    Serial.println("ENABLE CRYPTO IS:" + (String)enable_crypto);
     EEaddress = mem_map["enable_dst"];
     EEPROM.get(EEaddress, enable_DST);
+    Serial.println("ENABLE DST IS:" + (String)enable_DST);
     EEaddress = mem_map["offset"];
     EEPROM.get(EEaddress, offset);
+    Serial.println("OFFSET IS:" + (String)offset);
 
     nixieTapAPI.applyKey(weather_key, 4);
 }
@@ -458,6 +476,9 @@ void updateParameters() {
             EEPROM.put(EEaddress, crypto_key);
         }
     }
+    // Setting the "non initialized" flag to 0
+    EEaddress = mem_map["non_init"];
+    EEPROM.put(EEaddress, 0);
 
     EEPROM.commit();
     if(enable_crypto) {
@@ -653,7 +674,7 @@ void readButton() {
 void firstRunInit() {
 	bool notInitialized=1;
 	EEPROM.begin(512);
-    EEPROM.get(500, notInitialized);
+    EEPROM.get(mem_map["non_init"], notInitialized);
 	if(notInitialized) {
 		Serial.println("------------------------------------------");
 		Serial.println("Performing first run initialization...");
