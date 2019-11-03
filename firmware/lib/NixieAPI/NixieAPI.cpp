@@ -690,8 +690,9 @@ String NixieAPI::getCryptoPrice(char * crypto_key, char * currencyID) {
     std::unique_ptr<BearSSL::WiFiClientSecure>client(new BearSSL::WiFiClientSecure);
     client->setFingerprint(crypto_cert);
     HTTPClient https;
-    String URL = "http://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?CMC_PRO_API_KEY="+(String)crypto_key+"&id="+(String)currencyID;
-    String payload, price, cryptoName;
+    String URL = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?CMC_PRO_API_KEY="+(String)crypto_key+"&id="+(String)currencyID;
+	float price;
+    String payload, priceString, cryptoName;
     #ifdef DEBUG
         Serial.println("---------------------------------------------------------------------------------------------");
         Serial.println("Requesting price of a selected currency from: " + URL);
@@ -711,8 +712,9 @@ String NixieAPI::getCryptoPrice(char * crypto_key, char * currencyID) {
                 DynamicJsonDocument doc(1024);
                 DeserializationError error = deserializeJson(doc, payload);
                 if(!error) {
-                    price = doc["data"]["quotes"]["USD"]["price"].as<String>();
-                    cryptoName = doc["data"]["name"].as<String>();
+                    price = doc["data"][(String)currencyID]["quote"]["USD"]["price"];
+					priceString = String(price, 1);// round to 1 decimal place
+                    cryptoName = doc["data"][(String)currencyID]["name"].as<String>();
                     #ifdef DEBUG
                         Serial.println("The current price of " + cryptoName + " is: " + price);
                     #endif // DEBUG
@@ -739,7 +741,7 @@ String NixieAPI::getCryptoPrice(char * crypto_key, char * currencyID) {
     }
     https.end();
 
-    return price;
+    return priceString;
 }
 /*                                                                            *
  *  Calls OpenWeatherMap API, to get the temperature for the given location.  *
